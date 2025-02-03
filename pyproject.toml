@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyRMG"
+version = "0.1.0"
+description = "Tools to generate RMGDFT inputs"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Ryan Morelock", email = "rym@ornl.gov" }
+]
+dependencies = [
+    "numpy",  # Add your dependencies here
+    "ase",
+    "pymatgen"
+]
+
+[project.scripts]
+generate_pyrmg = "pyRMG.generate_pyrmg_cli:main"
+submit_pyrmg = "pyRMG.submit_pyrmg_cli:main"
+
+[tool.setuptools]
+packages = ["pyRMG"]  # Ensure this matches your package directory name
+
