@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pyRMG"
 version = "0.1.0"
-description = "Tools to generate RMGDFT inputs"
+description = "Tools to generate RMG DFT inputs"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [

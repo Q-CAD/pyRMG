@@ -1,0 +1,135 @@
+from pyRMG.forcefield import Forcefield
+from pyRMG.rmg_log import RMGLog
+from pyRMG.rmg_input import RMGInput
+from pyRMG.convergence import RMGConvergence
+from pyRMG.submitter import Submitter
+from pymatgen.core.structure import Structure
+from pathlib import Path
+import argparse
+import os
+
+def main():
+    parser = argparse.ArgumentParser(description="Argument parser to generate rmg_inputs from POSCAR files")
+
+    # Add arguments
+
+    # Input and ouput paths, files and names
+    parser.add_argument("--poscars_directory", "-pd", help="Path to the directory tree with editable POSCARs", required=True)
+    parser.add_argument("--rmg_yaml", "-ry", help="Path to the YAML file with RMG parameters", required=True)
+    parser.add_argument("--rmg_submission", "-rs", help="Path to a rmg submission script template", required=True)
+    parser.add_argument("--rmg_name", "-rn", help="Naming convention for the RMG files to check/generate", default='rmg_input')
+    parser.add_argument("--magmom_name", "-mn", help="Naming convention for the Magmom files to check", default='MAGMOM.json')
+
+    # Parameters for the submission script
+    parser.add_argument("--allocation", "-a", help="Allocation", type=str, default='MAT201')
+    parser.add_argument("--partition", "-p", help="Partition", type=str, default='batch')
+    parser.add_argument("--nodes", "-n", help="Number of nodes to request", type=int, default=0)
+    parser.add_argument("--gpus_per_node", "-g", help="Number of gpus per node on your hpc", type=int, default=8)
+    parser.add_argument("--electrons_per_gpu", "-epg", help="Number of valence electrons (based on atoms and PPs) per gpu", type=int, default=10)
+    parser.add_argument("--debug", "-d", help="Whether to write debug QOS to submission script", action="store_true")
+    parser.add_argument("--time", "-t", help="Calculation wall time, with format hours:minutes:seconds", type=str, default="02:00:00")
+
+    # Parse arguments and run function
+    args = parser.parse_args()
+    generate(args)
+    return
+
+def read_text(path):
+    ''' Reads in as a string '''
+    with open(path, 'r') as input_file:
+        input_str = input_file.read()
+    return input_str
+
+def write_text(text, path):
+    with open(path, 'w') as file:
+        file.write(text)
+    return 
+
+def create_rmg_submission(copy_path, write_path, allocation, job_name, nodes, time, rmg_file_path, debug):
+    ''' Reads a template submission file from copy_path and edits it with user parameters before writing it to write_path'''
+    submission_lines = read_text(copy_path)
+    lines = submission_lines.split('\n')
+    final_lines = ''
+    write_debug = debug
+    for i, line in enumerate(lines):
+        if '{ALLOCATION}' in line:
+            line = line.replace('{ALLOCATION}', allocation)
+        if '{JOB_NAME}' in line:
+            line = line.replace('{JOB_NAME}', job_name.replace(' ', '')) # Get rid of spaces
+        if '{NODES}' in line:
+            line = line.replace('{NODES}', str(nodes))
+        if '{TIME}' in line:
+            line = line.replace('{TIME}', time)
+        if '{RMG_FILE_PATH}' in line:
+            line = line.replace('{RMG_FILE_PATH}', rmg_file_path)
+        final_lines += line + '\n'
+        if "SBATCH -p" in line and write_debug is True:
+            final_lines += '#SBATCH -q debug\n#'
+            write_debug = False
+    write_text(final_lines, write_path)
+    return
+
+def generate(args):
+    abs_poscars_directory = os.path.abspath(args.poscars_directory)
+    for root, _, _ in os.walk(abs_poscars_directory):
+        generate_inputs = True
+
+        # Check convergence
+        forcefield_path = os.path.join(root, 'forcefield.xml')
+        rmg_path = os.path.join(root, args.rmg_name)
+
+        if os.path.exists(forcefield_path) and os.path.exists(rmg_path):
+            convergence_checker = RMGConvergence(forcefield=Forcefield(forcefield_path), 
+                                                 rmg_input=RMGInput(rmg_path))
+            if convergence_checker.is_converged():
+                print(f'{OK_GREEN}{convergence_checker.calculation_mode} job at {rmg_input_path} is converged, no inputs generated.{ENDC}')
+                generate_inputs = False
+
+        # Generate the input structures
+        poscar_path = os.path.join(root, 'POSCAR')
+        available_logs = Submitter.find_files(root, 'rmg_input.*.log')
+        final_structure = None
+
+        if generate_inputs:
+            magmom_path = os.path.join(root, args.magmom_name) if os.path.exists(os.path.join(root, args.magmom_name)) else None
+            if available_logs:
+                rmg_logs = RMGLog(root)
+                log_images = sorted(rmg_logs.logs_data.keys())
+                final_structure = rmg_logs.logs_data[log_images[-1]]['structures'][-1]
+                print(f'Generating input for {root} from final structure of {log_images[-1]}')
+            elif os.path.exists(poscar_path): # Indicates RMG file can be created from poscar
+                final_structure = Structure.from_file(poscar_path)
+                print(f'Generating input for {root} from POSCAR')
+            else: # Can't find structure to generate from
+                continue
+        
+        # Create the rmg_input files if they exist
+        if final_structure:
+            rmg_input = RMGInput.from_yaml(yaml_path=args.rmg_yaml, 
+                                 structure_path=None,
+                                 structure_obj=final_structure, 
+                                 magmom_path=magmom_path, 
+                                 target_nodes=args.nodes, 
+                                 gpus_per_node=args.gpus_per_node,
+                                 electrons_per_gpu=args.electrons_per_gpu)
+            rmg_input.save(filename=os.path.join(root, args.rmg_name))
+
+            # Create the submission script template
+            submission_name = Path(args.rmg_submission).name
+            write_path = os.path.join(root, submission_name)
+            
+            print(f'Generating {submission_name} for {root}\n')
+            create_rmg_submission(copy_path=args.rmg_submission, 
+                                  write_path=write_path, 
+                                  allocation=args.allocation,
+                                  job_name=args.rmg_name, 
+                                  nodes=rmg_input.target_nodes,
+                                  time=args.time,
+                                  rmg_file_path=args.rmg_name,
+                                  debug=args.debug)
+
+    return 
+
+if __name__ == '__main__':
+    main()
+

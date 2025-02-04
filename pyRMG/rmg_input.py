@@ -9,7 +9,7 @@ from pyRMG.processor_grid import get_processor_grid
 BOHR_TO_ANGSTROM = 0.529177
 
 class RMGInput:
-    def __init__(self, structure: Structure = None, site_params: dict = None, keywords: dict = None, input_file: str = None, target_nodes: int = None):
+    def __init__(self, structure: Structure = None, site_params: dict = None, keywords: dict = None, input_file: str = None, target_nodes: int = 0):
         """
         Initialize the RMGInput class.
 
@@ -64,46 +64,29 @@ class RMGInput:
         }
         current_key = None  # Tracks ongoing multi-line values
         multiline_buffer = []  # Stores accumulated lines for multi-line values
-
+        
         for line in lines:
             line = line.strip()
-            if not line or line.startswith("#"):  # Skip empty lines and comments
-                continue
-
-            # Match single-line key-value pairs (e.g., `cell_relax = "False"`)
-            match = re.match(r'(\w+)\s*=\s*"([^"]*)"', line)
-            if match:
-                key, value = match.groups()
-
-                # If we were collecting a multi-line value, store it before moving on
+            if not line or line.startswith("#") or line.startswith('"'):  # Skip empty lines and comments
                 if current_key and multiline_buffer:
-                    keywords[current_key] = "\n".join(multiline_buffer)
-                    multiline_buffer = []
-                    current_key = None  # Reset multiline tracking
-
-                # Store normal key-value pairs
-                keywords[key] = value.rstrip()
-                
-                # Store relevant structure parameters
-                if key in structure_params:
-                    structure_params[key] = value.rstrip()
-                
-                continue
-
-            # Handle known multi-line keys
-            if any(line.startswith(k + "=") for k in ["lattice_vector", "atoms"]):
-                current_key = line.split("=")[0]  # Get the key (e.g., "lattice_vector")
+                    keywords[current_key] = '\n'.join(multiline_buffer).replace('"', '').strip()
+                current_key = None
                 multiline_buffer = []
-                continue  # Move to the next line, as this line only starts the block
-
-            # If inside a multi-line block, accumulate values
-            if current_key:
+            elif any(line.startswith(k) for k in ["lattice_vector", "atoms"]):
+                current_key = line.split("=")[0].strip()  # Get the key (e.g., "lattice_vector")
+                multiline_buffer.append(line.split("=")[1])
+            elif current_key and multiline_buffer:
                 multiline_buffer.append(line)
-                continue
+            else:
+                match = re.match(r'(\w+)\s*=\s*"([^"]*)"', line)
+                if match:
+                    key, value = match.groups()
+                    # Store normal key-value pairs
+                    keywords[key] = value.rstrip()
 
-        # Finalize any remaining multi-line data
-        if current_key and multiline_buffer:
-            keywords[current_key] = "\n".join(multiline_buffer)
+                    # Store relevant structure parameters
+                    if key in structure_params:
+                        structure_params[key] = value.rstrip()
 
         # Determine if conversion from Bohr to Angstrom is needed
         conversion_factor = 1.0  # Default (Angstrom)
@@ -113,13 +96,13 @@ class RMGInput:
         # Convert lattice vectors if present
         if "lattice_vector" in keywords:
             structure_params["lattice_vectors"] = np.array([
-                list(map(float, line.strip('"').split())) for line in keywords["lattice_vector"].split("\n") if line.strip('"')
+                list(map(float, line.strip('"').split())) for line in keywords["lattice_vector"].split("\n") if line
             ]) * conversion_factor  # Apply unit conversion
 
         # Convert atomic positions if present
         if "atoms" in keywords:
             structure_params["atomic_positions"] = [
-                line.strip('"').split() for line in keywords["atoms"].split("\n") if line.strip('"')
+                line.strip('"').split() for line in keywords["atoms"].split("\n") if line
             ]
 
         # Build pymatgen Structure if possible
@@ -188,26 +171,27 @@ class RMGInput:
         return writelines
 
     @classmethod
-    def from_yaml(cls, yaml_path, structure_path, magmom_path=None, 
-                  target_nodes=None, gpus_per_node=8, electrons_per_gpu=10):
+    def from_yaml(cls, yaml_path, structure_path=None, structure_obj=None, magmom_path=None, 
+                  target_nodes=0, gpus_per_node=8, electrons_per_gpu=10):
         with open(yaml_path, 'r') as f:
             input_args = yaml.safe_load(f)
         
-        structure = Structure.from_file(structure_path)
-        site_params = {'selective_dynamics': cls._read_selective_dynamics(structure)}
+        if not structure_obj:
+            structure_obj = Structure.from_file(structure_path)
+        site_params = {'selective_dynamics': cls._read_selective_dynamics(structure_obj)}
         
         if magmom_path:
             site_params['magnetic_properties'] = cls._read_magnetic_occupancies(magmom_path)
         else:
-            site_params['magnetic_properties'] = ['0.0 0.0 0.0' for _ in structure]
+            site_params['magnetic_properties'] = ['0.0 0.0 0.0' for _ in structure_obj]
         
         if not target_nodes:
             oncv = ONCVValences()
-            total_electrons = np.sum([oncv.get_valence(str(site.specie)) for site in structure])
-            target_nodes = target_nodes or int(np.ceil(total_electrons / (electrons_per_gpu * gpus_per_node)))
+            total_electrons = np.sum([oncv.get_valence(str(site.specie)) for site in structure_obj])
+            target_nodes = int(np.ceil(total_electrons / (electrons_per_gpu * gpus_per_node)))
         
         if 'cutoff' in input_args:
-            wavefunction_grid = cls._generate_wavefunction_grid(structure, input_args['cutoff'])
+            wavefunction_grid = cls._generate_wavefunction_grid(structure_obj, input_args['cutoff'])
             input_args['wavefunction_grid'] = wavefunction_grid
             input_args.pop('cutoff', 0)
         elif 'wavefunction_grid' in input_args:
@@ -216,7 +200,7 @@ class RMGInput:
             raise KeyError(f'Input .yml must contain "cutoff" or "wavefunction_grid"')
         
         if 'kdelt' in input_args:
-            kpoint_mesh = cls._generate_kpoint_mesh(structure, input_args['kdelt'])
+            kpoint_mesh = cls._generate_kpoint_mesh(structure_obj, input_args['kdelt'])
             input_args['kpoint_mesh'] = kpoint_mesh
             input_args.pop('kdelt', 0)
         elif 'kpoint_mesh' in input_args:
@@ -229,10 +213,7 @@ class RMGInput:
                                                               target_nodes, gpus_per_node)
             input_args['processor_grid'] = processor_grid
 
-
-        #print(input_args, site_params, target_nodes)
-        
-        return cls(structure=structure, keywords=input_args, site_params=site_params, target_nodes=target_nodes)
+        return cls(structure=structure_obj, keywords=input_args, site_params=site_params, target_nodes=target_nodes)
     
     @staticmethod
     def _read_selective_dynamics(structure):
