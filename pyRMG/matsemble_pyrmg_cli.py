@@ -18,9 +18,9 @@ def main():
     parser.add_argument("--rmg_executable", "-re", help="Path to rmg executable", 
                         default='/lustre/orion/world-shared/cph162/rjmorelock/rmgdft/build-frontier-gpu/rmg-gpu')
     
-    parser.add_argument("--cores_per_task", "-cpt", help="Cores per task", default=7)
-    parser.add_argument("--gpus_per_task", "-gpt", help="GPUs per task", default=1)
-    parser.add_argument("--write_restart_freq", "-wrf", help="Write restart frequency", default=5)
+    parser.add_argument("--cores_per_task", "-cpt", help="Cores per task", type=int, default=7)
+    parser.add_argument("--gpus_per_task", "-gpt", help="GPUs per task", type=int, default=1)
+    parser.add_argument("--write_restart_freq", "-wrf", help="Write restart frequency", type=int, default=5)
     parser.add_argument("--dry_run", "-dry", help="Only print the structures to be run", action='store_true')
 
     # Parse arguments and run function
@@ -29,8 +29,8 @@ def main():
     return
 
 def get_total_gpus(rmg_input_root):
-    nodes = None
-    gpus_per_node = None
+    nodes = False
+    gpus_per_node = False
 
     try:
         sh_file = Submitter.find_files(rmg_input_root, '.sh')[0]
@@ -57,6 +57,7 @@ def get_total_gpus(rmg_input_root):
     if nodes and gpus_per_node:
         return nodes * gpus_per_node
     else:
+        print(f'Found NNODES={nodes} and found GPUS_PER_NODE={gpus_per_node}; check .sh file in {rmg_input_root}!')
         return None
     
 def execute_Flux(args):
@@ -73,9 +74,9 @@ def execute_Flux(args):
             total_gpus = get_total_gpus(root)
             if total_gpus:
                 if os.path.exists(forcefield_path):
-                    convergence_checker = RMGConvergence(forcefield=Forcefield(forcefield_path), 
-                                                 rmg_input=RMGInput(rmg_path))
-                    if convergence_checker.is_converged() is False:
+                    forcefield = Forcefield(forcefield_path)
+                    convergence_checker = RMGConvergence(rmg_input=rmg_input, forcefield=forcefield)
+                    if not convergence_checker.is_converged():
                         append_path = True
                 else:
                     append_path = True
@@ -95,9 +96,9 @@ def execute_Flux(args):
         total_gpus = 0
         print(f'Printing all RMG directories to run...\n')
         for i in task_list:
-            print(f'Task ID: {task_list[i]}, Path: {rmg_input_paths[i]}, Task GPUs: {total_gpus_lst[i]}\n')
+            print(f'Task ID: {task_list[i]}, Path: {rmg_input_paths[i]}, Task GPUs: {total_gpus_lst[i]}')
             total_gpus += total_gpus_lst[i]
-        print(f'Total GPUs = {total_gpus}. Do not forget to request 1 additional node for job management!')
+        print(f'\nTotal GPUs = {total_gpus}. Do not forget to request 1 additional node for job management!')
         return 
 
     else:
