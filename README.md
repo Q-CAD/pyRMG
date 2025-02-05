@@ -1,12 +1,13 @@
 # pyRMG
 
 ## Overview
-`pyRMG` allows the user to rapidly generate RMGDFT input files to facilitate high-throughput RMGDFT calculations.
+`pyRMG` enables the rapid auto-generation of RMG DFT input files from VASP POSCAR files for high-throughput calculations.
 
 ## Features
-- Input parameters passed through .yml file format
-- Automatically solves for the processor grid distribution based on system specifications
-- Includes checks for force and scf-convergence based on the `forcefield.xml` and `rmg_input` files 
+- Accepts input parameters as .yml files, which can be applied to directories of POSCAR files. 
+- Automatically solves for the number of nodes and processor grid distribution so that they are evenly spaced across the computed cells. 
+- Includes checks for force and scf-convergence based on the `forcefield.xml` and `rmg_input` files.
+- Can be integrated into matsemble Flux workflows for  
 
 ## Installation
 You can install `pyRMG` using pip:
@@ -22,6 +23,14 @@ git clone https://code.ornl.gov/rym/pyrmg.git
 cd pyrmg
 pip install -e .
 ```
+
+## Executables
+
+`submit_pyrmg_cli.py` - Used to submit a directory tree of RMG jobs as singular submissions, i.e., multiple single jobs. Takes the path with RMG input files as required input. 
+
+`generate_pyrmg_cli.py` - Used to constructure RMG input files and submission files (generated from templates in `submission_templates`) from POSCAR files in a subdirectory tree. Takes the POSCARs directory path, a .yml file with RMG input parameters, and a submission script template as required inputs. 
+
+`matsemble_pyrmg_cli.py` - The executable used to submit a directory tree of RMG jobs into a single Flux job submission. Does not require any inputs, as the default is to search current directory for RMG jobs.  
 
 ## License
 This project is licensed under the MIT License. 
