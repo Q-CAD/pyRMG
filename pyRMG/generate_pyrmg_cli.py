@@ -45,7 +45,7 @@ def write_text(text, path):
         file.write(text)
     return 
 
-def create_rmg_submission(copy_path, write_path, allocation, job_name, nodes, time, rmg_file_path, debug):
+def create_rmg_submission(copy_path, write_path, allocation, job_name, nodes, gpus_per_node, time, rmg_file_path, debug):
     ''' Reads a template submission file from copy_path and edits it with user parameters before writing it to write_path'''
     submission_lines = read_text(copy_path)
     lines = submission_lines.split('\n')
@@ -62,6 +62,8 @@ def create_rmg_submission(copy_path, write_path, allocation, job_name, nodes, ti
             line = line.replace('{TIME}', time)
         if '{RMG_FILE_PATH}' in line:
             line = line.replace('{RMG_FILE_PATH}', rmg_file_path)
+        if '{GPUS_PER_NODE}' in line:
+            line = line.replace('{GPUS_PER_NODE}', str(gpus_per_node))
         final_lines += line + '\n'
         if "SBATCH -p" in line and write_debug is True:
             final_lines += '#SBATCH -q debug\n#'
@@ -124,6 +126,7 @@ def generate(args):
                                   allocation=args.allocation,
                                   job_name=args.rmg_name, 
                                   nodes=rmg_input.target_nodes,
+                                  gpus_per_node=args.gpus_per_node,
                                   time=args.time,
                                   rmg_file_path=args.rmg_name,
                                   debug=args.debug)

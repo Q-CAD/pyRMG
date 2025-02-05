@@ -149,8 +149,8 @@ class RMGInput:
         writelines += '\n'
 
         writelines += f'atomic_coordinate_type = "Absolute"\n'
-        writelines += f'crds_units = "Angstroms"\n'
-        writelines += f'lattice_units = "Angstroms"\n\n'
+        writelines += f'crds_units = "Angstrom"\n'
+        writelines += f'lattice_units = "Angstrom"\n\n'
 
         lattice_vector_lines = 'lattice_vector = "\n'
         for row in self.structure.lattice.matrix:
