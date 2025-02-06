@@ -1,13 +1,13 @@
 # pyRMG
 
 ## Overview
-`pyRMG` enables the rapid auto-generation of RMG DFT input files from VASP POSCAR files for high-throughput calculations.
+`pyRMG` enables the rapid auto-generation of [RMG DFT](https://github.com/RMGDFT) input files from VASP POSCAR files for high-throughput calculations. `pyRMG` is currently built off of the RMG's develop branch, and all features may not work properly for other releases.
 
 ## Features
 - Accepts input parameters as .yml files, which can be applied to directories of POSCAR files. 
 - Automatically solves for the number of nodes and processor grid distribution so that they are evenly spaced across the computed cells. 
-- Includes checks for force and scf-convergence based on the `forcefield.xml` and `rmg_input` files.
-- Can be integrated into matsemble Flux workflows for  
+- Includes checks for force and scf-convergence based on `forcefield.xml` and `rmg_input` files.
+- Can be integrated into matsemble + Flux scheduler workflows for high-throughput calculations.   
 
 ## Installation
 You can install `pyRMG` using pip:

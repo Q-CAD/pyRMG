@@ -8,9 +8,9 @@ class RMGConvergence:
         self.forcefield = forcefield
 
     def is_converged(self):
-        if self.calculation_mode == "Quench Electrons":
+        if self.calculation_mode == "Relax Structure":
             return (self.forcefield.force and self.forcefield.scf)
-        elif self.calculation_mode == "Relax Structure":
+        elif self.calculation_mode == "Quench Electrons":
             return self.forcefield.scf
         else:
             raise ValueError(f'Convergence checking not currently supported for {self.calculation_mode}')

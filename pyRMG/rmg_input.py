@@ -1,5 +1,6 @@
 import yaml
 import re
+import json
 from pymatgen.core import Structure
 import numpy as np
 from pyRMG.valence import ONCVValences
