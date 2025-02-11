@@ -8,12 +8,12 @@ vdw_corr: "DFT-D3"
 vdwdf_kernel_filepath: "/lustre/orion/world-shared/cph162/rjmorelock/rmgdft/XC/vdW_kernel_table"
 #coalesce_states: True
 #coalesce_factor: 4
-max_md_steps: 100 # Acts as max ionic steps
+max_md_steps: 10 # Acts as max ionic steps
 start_mode: "LCAO Start"
 #localize_localpp: True
 #localize_projectors: True
 calculation_mode: "Relax Structure"
-cell_relax: True
+cell_relax: False
 stress: True
 kohn_sham_solver: "davidson" # "multigrid"
 output_wave_function_file: "/dev/null"

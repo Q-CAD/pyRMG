@@ -64,12 +64,13 @@ class RMGLog:
                 check_lattices = all_lattices
             
             number_complete = min(len(check_lattices), len(all_positions))
-            
+           
+
             for i in range(number_complete):
                 lattice_angstroms = np.divide(np.array(check_lattices[i]), bohr_factor)
                 lattice_positions = np.divide(np.array(all_positions[i]), bohr_factor)
                 force_hartree_angstrom = np.multiply(np.array(all_forces[i]), bohr_rydberg)
-                
+                #print(force_hartree_angstrom) 
                 s = Structure(lattice=lattice_angstroms, species=all_species[i],
                               coords=lattice_positions, coords_are_cartesian=True)
                 structures.append(s)

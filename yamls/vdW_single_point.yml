@@ -12,8 +12,8 @@ max_md_steps: 100 # Acts as max ionic steps
 start_mode: "LCAO Start"
 #localize_localpp: True
 #localize_projectors: True
-calculation_mode: "Relax Structure"
-cell_relax: True
+calculation_mode: "Quench Electrons"
+cell_relax: False
 stress: True
 kohn_sham_solver: "davidson" # "multigrid"
 output_wave_function_file: "/dev/null"

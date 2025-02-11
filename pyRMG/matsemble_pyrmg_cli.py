@@ -87,10 +87,6 @@ def execute_Flux(args):
     
     task_list = list(np.arange(len(rmg_roots)))
     tasks_per_job = np.array(total_gpus_lst)
-    job_record = pd.DataFrame({'Task id': task_list,
-        'Task path': rmg_roots
-    })
-    job_record.to_csv('job_record.txt', sep=' ', index=None)
 
     if args.dry_run:
         total_gpus = 0
@@ -98,11 +94,16 @@ def execute_Flux(args):
         for i in task_list:
             print(f'Task ID: {task_list[i]}, Path: {rmg_input_paths[i]}, Task GPUs: {total_gpus_lst[i]}')
             total_gpus += total_gpus_lst[i]
-        print(f'\nTotal GPUs = {total_gpus}. Do not forget to request 1 additional node for job management!')
+        print(f'\nTotal GPUs = {total_gpus}. Do not forget to request 1 additional node for resource management!')
         return 
 
     else:
         # Now instantiate a task_manager object, which is a Superflux Manager sitting on top of evey smaller Fluxlets
+        job_record = pd.DataFrame({'Task id': task_list,
+        'Task path': rmg_roots
+        })
+        job_record.to_csv('job_record.txt', sep=' ', index=None)
+
         from matensemble.matfluxGen import SuperFluxManager
 
         master = SuperFluxManager(task_list, 

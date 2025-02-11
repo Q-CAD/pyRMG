@@ -8,6 +8,11 @@ from pathlib import Path
 import argparse
 import os
 
+OK_GREEN = '\033[92m'
+FAIL_RED = '\033[91m'
+NO_YELLOW = '\033[93m'
+ENDC = '\033[0m'
+
 def main():
     parser = argparse.ArgumentParser(description="Argument parser to generate rmg_inputs from POSCAR files")
 
@@ -81,13 +86,17 @@ def generate(args):
         rmg_path = os.path.join(root, args.rmg_name)
 
         if os.path.exists(forcefield_path) and os.path.exists(rmg_path):
-            convergence_checker = RMGConvergence(forcefield=Forcefield(forcefield_path), 
-                                                 rmg_input=RMGInput(rmg_path))
+            forcefield = Forcefield(forcefield_xml_path=forcefield_path)
+            rmg_input = RMGInput(input_file=rmg_path)
+            convergence_checker = RMGConvergence(forcefield=forcefield, 
+                                                 rmg_input=rmg_input)
             if convergence_checker.is_converged():
-                print(f'{OK_GREEN}{convergence_checker.calculation_mode} job at {rmg_input_path} is converged, no inputs generated.{ENDC}')
+                print(f'{OK_GREEN}{convergence_checker.calculation_mode} job in {root} is converged, no inputs generated.{ENDC}')
                 generate_inputs = False
+            else:
+                print(f'{FAIL_RED}Unconverged {convergence_checker.calculation_mode} job in {root}, inputs generated.{ENDC}')
 
-        # Generate the input structures
+        # Choose the input structure
         poscar_path = os.path.join(root, 'POSCAR')
         available_logs = Submitter.find_files(root, 'rmg_input.*.log')
         final_structure = None
