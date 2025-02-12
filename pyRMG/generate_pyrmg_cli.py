@@ -103,7 +103,7 @@ def generate(args):
 
         if generate_inputs:
             magmom_path = os.path.join(root, args.magmom_name) if os.path.exists(os.path.join(root, args.magmom_name)) else None
-            if available_logs:
+            if os.path.exists(poscar_path) and available_logs:
                 rmg_logs = RMGLog(root)
                 log_images = sorted(rmg_logs.logs_data.keys())
                 final_structure = rmg_logs.logs_data[log_images[-1]]['structures'][-1]

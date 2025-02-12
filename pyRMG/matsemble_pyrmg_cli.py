@@ -1,6 +1,9 @@
+#!/autofs/nccs-svm1_proj/cph162/python_environments/matensemble_env/bin/python
+
 from pyRMG.rmg_input import RMGInput
 from pyRMG.forcefield import Forcefield
 from pyRMG.submitter import Submitter
+from pyRMG.convergence import RMGConvergence
 import glob
 import argparse
 import os
@@ -99,6 +102,8 @@ def execute_Flux(args):
 
     else:
         # Now instantiate a task_manager object, which is a Superflux Manager sitting on top of evey smaller Fluxlets
+        # This requires an installation of matensemble
+
         job_record = pd.DataFrame({'Task id': task_list,
         'Task path': rmg_roots
         })
@@ -114,7 +119,6 @@ def execute_Flux(args):
                               gpus_per_task=args.gpus_per_task, 
                               write_restart_freq=args.write_restart_freq)
 
-        # For multiple args per task each if the elements could be a list i.e. task_args_list = [['x0f','x14'],['xa9','xf3'],[]...]
         # finally execute the whole pool of tasks
         master.poolexecutor(task_arg_list=rmg_input_paths, 
                         buffer_time=1, 

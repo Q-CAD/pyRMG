@@ -16,9 +16,9 @@
 #SBATCH -p batch
 #SBATCH -q debug
 #
-# Number of frontier nodes to use.
+# Number of frontier nodes to use. Note, with Flux, one node is used for resource management. 
 # Set the same value in the SBATCH line and NNODES
-#SBATCH -N 1
+#SBATCH -N 2
 #
 # OMP num threads. Frontier reserves 8 of 64 cores on a node
 # for the system. There are 8 logical GPUs per node so we use
@@ -49,18 +49,19 @@ module load rocm/6.0.0
 module load libfabric/1.15.2.0 # Reload previous libfabric
 
 #---------------------- SETUP FOR MATENSEMBLE IN FRONTIER -------------------------------------------------------------------
+
+# Load the spack environment and Flux
 . /autofs/nccs-svm1_proj/cph162/Sep_11_2024/spack/share/spack/setup-env.sh
-which spack
 spack env activate spack_matensemble_env
 spack load flux-sched
-which flux
-export PYTHONPATH=$PYTHONPATH:/autofs/nccs-svm1_proj/cph162/python_environments/matensemble_env/lib/python3.11/site-ackages
 
-module load python
+# Activate the matsemble_env with pyRMG
 conda activate /autofs/nccs-svm1_proj/cph162/python_environments/matensemble_env
 
-# just in case there are python conflicts due to spack and conda
-CONDA_PYTHON_EXE=/autofs/nccs-svm1_proj/cph162/python_environments/matensemble_env/bin/python
-echo $CONDA_PYTHON_EXE
+# Step 1: Generate the new rmg_input files from any existing rmg_input.*.log files; specify arguments
+echo "Generating new inputs..."
+generate_pyrmg -pd . -ry inputs/vdW_full_relaxation.yml -rs inputs/frontier_rmg.sh -n 1 
 
+# Step 2: Run the main Flux submission workflow; specify arguments
+echo "Running the main Flux submission workflow..."
 srun -N $SLURM_NNODES -n $SLURM_NNODES --external-launcher --mpi=pmi2 --gpu-bind=closest flux start matsemble_pyrmg
