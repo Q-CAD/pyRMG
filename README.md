@@ -28,7 +28,7 @@ pip install -e .
 
 `submit_pyrmg_cli.py` - Used to submit a directory tree of RMG jobs as singular submissions, i.e., multiple single jobs. Takes the path with RMG input files as required input. 
 
-`generate_pyrmg_cli.py` - Used to constructure RMG input files and submission files (generated from templates in `submission_templates`) from POSCAR files in a subdirectory tree. Takes the POSCARs directory path, a .yml file with RMG input parameters, and a submission script template as required inputs. 
+`generate_pyrmg_cli.py` - Used to construct RMG input files and submission files (generated from templates in `submission_templates`) from POSCAR files in a subdirectory tree. Takes the POSCARs directory path, a .yml file with RMG input parameters, and a submission script template as required inputs. 
 
 `matsemble_pyrmg_cli.py` - The executable used to submit a directory tree of RMG jobs into a single Flux job submission. Does not require any inputs, as the default is to search current directory for RMG jobs.  
 
