@@ -218,8 +218,8 @@ class RMGInput:
     
     @staticmethod
     def _read_selective_dynamics(structure):
-        return [" ".join(map(str, sd)) if "selective_dynamics" in structure.site_properties else "1 1 1" 
-                for sd in structure.site_properties.get("selective_dynamics", [[True, True, True]] * len(structure))]
+        return [" ".join("1" if x else "0" for x in sd) if "selective_dynamics" in structure.site_properties else "1 1 1"
+            for sd in structure.site_properties.get("selective_dynamics", [[True, True, True]] * len(structure))]
     
     @staticmethod
     def _read_magnetic_occupancies(magmom_path):

@@ -11,7 +11,7 @@ vdwdf_kernel_filepath: "/lustre/orion/world-shared/cph162/rjmorelock/rmgdft/XC/v
 max_md_steps: 100 # Acts as max ionic steps
 start_mode: "LCAO Start"
 #localize_localpp: True
-#localize_projectors: True
+localize_projectors: False
 calculation_mode: "Relax Structure"
 cell_relax: True
 stress: True
