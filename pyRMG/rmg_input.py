@@ -1,6 +1,8 @@
 import yaml
 import re
 import json
+import os
+import sys
 from pymatgen.core import Structure
 import numpy as np
 from pyRMG.valence import ONCVValences
@@ -23,7 +25,11 @@ class RMGInput:
 
         if input_file:
             # Load from an existing file
-            self._load_from_file(input_file)
+            try:
+                self._load_from_file(input_file)
+            except ValueError:
+                print(f'Cannot generate structure, keywords, and site_params from {input_file}')
+                sys.exit(1)
         elif structure and keywords and site_params:
             # Initialize from a structure and a dictionary of settings
             self.structure = structure
@@ -182,9 +188,12 @@ class RMGInput:
         site_params = {'selective_dynamics': cls._read_selective_dynamics(structure_obj), 
                        'magnetic_properties': cls._read_magnetic_occupancies(structure_obj)}
         
-        if not site_params['magnetic_properties'] and os.path.exists(magmom_path):
-            with open(magmom_path, 'r') as f:
-                site_params['magnetic_properties'] = [" ".join(map(str, mag)) for mag in json.load(f)]
+        if not site_params['magnetic_properties']:
+            if magmom_path and os.path.exists(magmom_path):
+                with open(magmom_path, 'r') as f:
+                    site_params['magnetic_properties'] = [" ".join(map(str, mag)) for mag in json.load(f)]
+            else:
+                site_params['magnetic_properties'] = ["0.0 0.0 0.0" for site in structure_obj]
 
         if not target_nodes:
             oncv = ONCVValences()
