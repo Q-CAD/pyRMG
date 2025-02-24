@@ -111,8 +111,8 @@ class RMGInput:
         if structure_params["lattice_vectors"] is not [] and structure_params["atomic_positions"] is not []:
             species = [atom[0] for atom in structure_params["atomic_positions"]]
             coords = np.array([[float(x) for x in atom[1:4]] for atom in structure_params["atomic_positions"]])
-            site_params['selective_dynamics'] = [" ".join(atom[4:7]) for atom in structure_params["atomic_positions"]]
-            site_params['magnetic_properties'] = [" ".join(atom[7:]) for atom in structure_params["atomic_positions"]]
+            site_params['selective_dynamics'] = [[atom[i] == "1" for i in range(4, 7)] for atom in structure_params["atomic_positions"]]
+            site_params['magnetic_properties'] = [[float(atom[i]) for i in range(7, len(atom))] for atom in structure_params["atomic_positions"]]
             coords *= conversion_factor  # Apply unit conversion to atomic positions
             
             # Set coords_are_cartesian
@@ -179,13 +179,13 @@ class RMGInput:
         
         if not structure_obj:
             structure_obj = Structure.from_file(structure_path)
-        site_params = {'selective_dynamics': cls._read_selective_dynamics(structure_obj)}
+        site_params = {'selective_dynamics': cls._read_selective_dynamics(structure_obj), 
+                       'magnetic_properties': cls._read_magnetic_occupancies(structure_obj)}
         
-        if magmom_path:
-            site_params['magnetic_properties'] = cls._read_magnetic_occupancies(magmom_path)
-        else:
-            site_params['magnetic_properties'] = ['0.0 0.0 0.0' for _ in structure_obj]
-        
+        if not site_params['magnetic_properties'] and os.path.exists(magmom_path):
+            with open(magmom_path, 'r') as f:
+                site_params['magnetic_properties'] = [" ".join(map(str, mag)) for mag in json.load(f)]
+
         if not target_nodes:
             oncv = ONCVValences()
             total_electrons = np.sum([oncv.get_valence(str(site.specie)) for site in structure_obj])
@@ -222,10 +222,10 @@ class RMGInput:
             for sd in structure.site_properties.get("selective_dynamics", [[True, True, True]] * len(structure))]
     
     @staticmethod
-    def _read_magnetic_occupancies(magmom_path):
-        with open(magmom_path, 'r') as f:
-            return [" ".join(map(str, mag)) for mag in json.load(f)]
-    
+    def _read_magnetic_occupancies(structure):
+        return [" ".join(str(x) for x in sd) if "magnetic_properties" in structure.site_properties else "0.0 0.0 0.0"
+            for sd in structure.site_properties.get("magnetic_properties", [])]
+
     @staticmethod
     def _generate_wavefunction_grid(structure, cutoff):
         rca = np.pi / np.sqrt(cutoff) * BOHR_TO_ANGSTROM

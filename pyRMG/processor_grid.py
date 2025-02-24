@@ -25,7 +25,7 @@ def weighting_function(x, sigma, x_ideal, alpha=0.2, beta=0.1, tolerance=1e-1):
     return penalty * sigma if sigma > tolerance else penalty * tolerance # Avoid issues with zero sigma
 
 def evaluate_combination(original_integers, combination, grid_values, min_idx, mid_idx, max_idx,
-                         target_nodes, gpus_per_node):
+                         target_nodes, gpus_per_node, division_limit=15):
     """Evaluate a specific GPU distribution combination and compute its weighted value."""
     additions = np.zeros(3, dtype=int)
     additions[[max_idx, mid_idx, min_idx]] = combination
@@ -35,10 +35,17 @@ def evaluate_combination(original_integers, combination, grid_values, min_idx, m
         return None, None
 
     total_gpus = math.prod(new_combo)
-    if total_gpus % gpus_per_node != 0:  # Ensure divisibility
+    if total_gpus <= gpus_per_node: # Allow partial gpus_per_node for single node jobs
+        pass
+    else:
+        if total_gpus % gpus_per_node != 0:  # Ensure divisibility
+            return None, None
+
+    grid_per_combo = grid_values / new_combo
+    if not all(x >= division_limit for x in grid_per_combo): # Helps with number of grid points per PE >= kohn_sham_fd_order/2 
         return None, None
 
-    sigma = np.std(grid_values / new_combo)
+    sigma = np.std(grid_per_combo)
     target_gpus = target_nodes * gpus_per_node
     weighted_value = weighting_function(total_gpus, sigma, target_gpus)
 
@@ -90,6 +97,8 @@ def get_processor_grid(grid_values, target_nodes, gpus_per_node=8):
         max_lowest_grid_gpus -= 1
 
     total_nodes = int(math.prod(best_processor_grid) / gpus_per_node)
+    if total_nodes == 0: # In case this is equal to 0, for small jobs with partial nodes
+        total_nodes = 1
     best_processor_grid_string = ' '.join([str(gpus) for gpus in best_processor_grid])
 
     return best_processor_grid_string, total_nodes

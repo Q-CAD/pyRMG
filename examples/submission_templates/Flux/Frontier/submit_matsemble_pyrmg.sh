@@ -48,20 +48,26 @@ module load craype-accel-amd-gfx90a
 module load rocm/6.0.0
 module load libfabric/1.15.2.0 # Reload previous libfabric
 
-#---------------------- SETUP FOR MATENSEMBLE IN FRONTIER -------------------------------------------------------------------
+#---------------------- SETUP FOR Flux + matensemble + pyRMG IN FRONTIER -------------------------------------------------------------------
+
+# Unload any currently loaded conda environments and activate matensemble_env, allowing pyRMG executables to run
+eval "$(command conda 'shell.bash' 'hook' 2> /dev/null)"
+conda deactivate
+conda activate /autofs/nccs-svm1_proj/cph162/python_environments/matensemble_env
 
 # Load the spack environment and Flux
 . /autofs/nccs-svm1_proj/cph162/Sep_11_2024/spack/share/spack/setup-env.sh
 spack env activate spack_matensemble_env
 spack load flux-sched
 
-# Activate the matsemble_env with pyRMG
+# Activate the matensemble_env with pyRMG installed within the spack
 conda activate /autofs/nccs-svm1_proj/cph162/python_environments/matensemble_env
 
-# Step 1: Generate the new rmg_input files from any existing rmg_input.*.log files; specify arguments
+# Step 1: Generate the new rmg_input files from any existing POSCAR or rmg_input.*.log files; can specify arguments
 echo "Generating new inputs..."
-generate_pyrmg -pd . -ry inputs/vdW_full_relaxation.yml -rs inputs/frontier_rmg.sh -n 1 
+generate_pyrmg -pd . -ry inputs/vdW_full_relaxation.yml -rs inputs/frontier_rmg.sh -n 1
 
-# Step 2: Run the main Flux submission workflow; specify arguments
+# Step 2: Run the main Flux submission workflow; can specify arguments
 echo "Running the main Flux submission workflow..."
-srun -N $SLURM_NNODES -n $SLURM_NNODES --external-launcher --mpi=pmi2 --gpu-bind=closest flux start matsemble_pyrmg
+srun -N $SLURM_NNODES -n $SLURM_NNODES --external-launcher --mpi=pmi2 --gpu-bind=closest flux start matsemble_pyrmg -rid .
+

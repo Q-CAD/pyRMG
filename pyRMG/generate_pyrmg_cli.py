@@ -91,30 +91,45 @@ def generate(args):
             convergence_checker = RMGConvergence(forcefield=forcefield, 
                                                  rmg_input=rmg_input)
             if convergence_checker.is_converged():
-                print(f'{OK_GREEN}{convergence_checker.calculation_mode} job in {root} is converged, no inputs generated.{ENDC}')
+                print(f'{OK_GREEN}{convergence_checker.calculation_mode} job in {root} is converged, no inputs generated.{ENDC}\n')
                 generate_inputs = False
             else:
                 print(f'{FAIL_RED}Unconverged {convergence_checker.calculation_mode} job in {root}, inputs generated.{ENDC}')
 
         # Choose the input structure
         poscar_path = os.path.join(root, 'POSCAR')
+        rmg_input_path = os.path.join(root, args.rmg_name)
         available_logs = Submitter.find_files(root, 'rmg_input.*.log')
         final_structure = None
 
         if generate_inputs:
             magmom_path = os.path.join(root, args.magmom_name) if os.path.exists(os.path.join(root, args.magmom_name)) else None
-            if os.path.exists(poscar_path) and available_logs:
-                rmg_logs = RMGLog(root)
-                log_images = sorted(rmg_logs.logs_data.keys())
-                final_structure = rmg_logs.logs_data[log_images[-1]]['structures'][-1]
-                print(f'Generating input for {root} from final structure of {log_images[-1]}')
-            elif os.path.exists(poscar_path): # Indicates RMG file can be created from poscar
-                final_structure = Structure.from_file(poscar_path)
-                print(f'Generating input for {root} from POSCAR')
+            if os.path.exists(poscar_path): 
+                if os.path.exists(rmg_input_path):
+                    rmg_input = RMGInput(input_file=rmg_input_path)
+                    if available_logs:
+                        rmg_logs = RMGLog(root)
+                        log_images = sorted(rmg_logs.logs_data.keys(), reverse=True)  # Sort in descending order
+
+                        for image in log_images:
+                            structures = rmg_logs.logs_data[image].get('structures', [])
+                            if structures:  # Ensure there are structures available
+                                final_structure = structures[-1]
+                                print(f'Generating input for {root} from final structure of {image}')
+                                break  # Exit loop once we find a valid structure
+                    else:
+                        print(f'No valid structures found in logs for {root}; defaulting to {args.rmg_name}')
+                        final_structure = rmg_input.structure
+
+                    for prop_key, prop_value in rmg_input.site_params.items():
+                        final_structure.add_site_property(prop_key, prop_value)
+                else:
+                    final_structure = Structure.from_file(poscar_path)
+                    print(f'No valid structures found in logs for {root}; defaulting to POSCAR')
             else: # Can't find structure to generate from
                 continue
         
-        # Create the rmg_input files if they exist
+        # Create the new rmg_input file if final_structure exists
         if final_structure:
             rmg_input = RMGInput.from_yaml(yaml_path=args.rmg_yaml, 
                                  structure_path=None,
