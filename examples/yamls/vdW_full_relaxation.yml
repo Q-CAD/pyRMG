@@ -16,14 +16,15 @@ calculation_mode: "Relax Structure"
 cell_relax: True
 stress: True
 kohn_sham_solver: "davidson" # "multigrid"
-output_wave_function_file: "/dev/null"
+output_wave_function_file: "/dev/null" # "Waves/wave.out"
 subdiag_driver: "scalapack"
 charge_mixing_type: "Broyden" # Default is Linear for multigrid
 charge_density_mixing: 0.05 # David's default 0.5
-max_scf_steps: 100 # Number provided by Wenchang
+max_scf_steps: 150 # Number provided by Wenchang
 potential_acceleration_constant_step: 1.5
 write_data_period: 50
-energy_convergence_criterion: 1.0e-8
+energy_convergence_criterion: 1.0e-10
+rms_convergence_criterion: 1.0e-08
 energy_output_units: "Hartrees"
 
 # Parameters that vary
