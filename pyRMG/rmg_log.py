@@ -27,17 +27,23 @@ class RMGLog:
                 for line in f:
                     if "X Basis Vector" in line or "Y Basis Vector" in line or "Z Basis Vector" in line:
                         split_lines = line.split()
-                        current_lattice.append([float(split_lines[3]), float(split_lines[4]), float(split_lines[5])])
-                        if len(current_lattice) == 3:
-                            all_lattices.append(current_lattice)
-                            current_lattice = []
+                        try:
+                            current_lattice.append([float(split_lines[3]), float(split_lines[4]), float(split_lines[5])])
+                            if len(current_lattice) == 3:
+                                all_lattices.append(current_lattice)
+                                current_lattice = []
+                        except IndexError:
+                            continue
                     
                     elif "lattice" in line:
                         split_lines = line.split()
-                        current_lattice.append([float(split_lines[2]), float(split_lines[3]), float(split_lines[4])])
-                        if len(current_lattice) == 3:
-                            all_lattices.append(current_lattice)
-                            current_lattice = []
+                        try:
+                            current_lattice.append([float(split_lines[2]), float(split_lines[3]), float(split_lines[4])])
+                            if len(current_lattice) == 3:
+                                all_lattices.append(current_lattice)
+                                current_lattice = []
+                        except IndexError:
+                            continue
                     
                     elif "@ION" in line:
                         split_lines = line.split()
@@ -46,7 +52,7 @@ class RMGLog:
                                 current_position.append([float(split_lines[3]), float(split_lines[4]), float(split_lines[5])])
                                 current_specie.append(split_lines[2])
                                 current_force.append([float(split_lines[7]), float(split_lines[8]), float(split_lines[9])])
-                        except NameError:
+                        except (NameError, IndexError):
                             continue
                     
                     if len(current_specie) == len(original_structure):
@@ -64,7 +70,7 @@ class RMGLog:
                 check_lattices = all_lattices
             
             number_complete = min(len(check_lattices), len(all_positions))
-           
+            energies = energies[:number_complete] 
 
             for i in range(number_complete):
                 lattice_angstroms = np.divide(np.array(check_lattices[i]), bohr_factor)
