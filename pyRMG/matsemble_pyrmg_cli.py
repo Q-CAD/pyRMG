@@ -1,5 +1,4 @@
-#!/autofs/nccs-svm1_proj/cph162/python_environments/matensemble_env/bin/python
-
+from pyRMG.load_config import load_config 
 from pyRMG.rmg_input import RMGInput
 from pyRMG.forcefield import Forcefield
 from pyRMG.submitter import Submitter
@@ -11,23 +10,28 @@ import numpy as np
 import pandas as pd
 
 def main():
+    config = load_config()
     parser = argparse.ArgumentParser(description="Argument parser to generate rmg_inputs from POSCAR files")
 
     # Add arguments
 
     # Input and ouput paths, files and names
-    parser.add_argument("--rmg_inputs_directory", "-rid", help="Path to the directory tree with RMG input files", default='.')
+    parser.add_argument("--parent_directory", "-pd", help="Path to the directory tree with RMG input files", default='.')
     parser.add_argument("--rmg_name", "-rn", help="Naming convention for the RMG files to check/generate", default='rmg_input')
-    parser.add_argument("--rmg_executable", "-re", help="Path to rmg executable", 
-                        default='/lustre/orion/world-shared/cph162/rjmorelock/rmgdft/build-frontier-gpu/rmg-gpu')
     
-    parser.add_argument("--cores_per_task", "-cpt", help="Cores per task", type=int, default=7)
-    parser.add_argument("--gpus_per_task", "-gpt", help="GPUs per task", type=int, default=1)
+    parser.add_argument("--rmg_executable", "-re", help="Path to rmg executable", default=config.get("rmg_executable", None))
+    parser.add_argument("--cores_per_task", "-cpt", help="Cores per task", type=int, default=config.get("cores_per_task", 1))
+    parser.add_argument("--gpus_per_task", "-gpt", help="GPUs per task", type=int, default=config.get("gpus_per_task", 1))
+
     parser.add_argument("--write_restart_freq", "-wrf", help="Write restart frequency", type=int, default=5)
-    parser.add_argument("--dry_run", "-dry", help="Only print the structures to be run", action='store_true')
+    parser.add_argument("--dry_run", "-dry", help="Provide a print-out for the structures to be run", action='store_true')
 
     # Parse arguments and run function
     args = parser.parse_args()
+    if not args.rmg_executable:
+        print('No valid rmg_executable path provided! check ~/.pyRMG/config.yml')
+        sys.exit(1)
+
     execute_Flux(args)
     return
 
@@ -66,7 +70,7 @@ def get_total_gpus(rmg_input_root):
 def execute_Flux(args):
     rmg_roots, rmg_input_paths, total_gpus_lst = [], [], []
 
-    abs_rmg_inputs_directory = os.path.abspath(args.rmg_inputs_directory)
+    abs_rmg_inputs_directory = os.path.abspath(args.parent_directory)
     for root, _, _ in os.walk(abs_rmg_inputs_directory):
         append_path = False
         rmg_input_path = os.path.join(root, args.rmg_name)

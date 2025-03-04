@@ -13,7 +13,7 @@ ENDC = '\033[0m'
 
 def main():
     parser = argparse.ArgumentParser(description="Argument parser to submit RMG jobs")
-    parser.add_argument("--poscars_directory", "-pd", required=True, help="Path to the directory tree with editable rmg_inputs (POSCARs)")
+    parser.add_argument("--parent_directory", "-pd", required=True, help="Path to the directory tree with editable .log, rmg_input, or POSCAR files")
     parser.add_argument("--rmg_name", "-rn", help="Naming convention for the RMG files to check/generate", default='rmg_input')
     parser.add_argument("--submit", "-s", action='store_true', help="Whether to resubmit unconverged jobs")
     parser.add_argument("--move", "-m", action="store_true", help="Whether to create converged RMG structure and move them to a new directory")
@@ -55,7 +55,7 @@ def build_tree(root, to_path):
     return new_rel_write_path
 
 def submit(args):
-    abs_poscars_directory = os.path.abspath(args.poscars_directory)
+    abs_poscars_directory = os.path.abspath(args.parent_directory)
     for root, _, _ in os.walk(abs_poscars_directory):
         rmg_input_path = os.path.join(root, args.rmg_name)
         forcefield_path = os.path.join(root, 'forcefield.xml')

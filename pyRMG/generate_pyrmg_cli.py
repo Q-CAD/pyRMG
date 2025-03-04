@@ -1,3 +1,4 @@
+from pyRMG.load_config import load_config
 from pyRMG.forcefield import Forcefield
 from pyRMG.rmg_log import RMGLog
 from pyRMG.rmg_input import RMGInput
@@ -7,6 +8,7 @@ from pymatgen.core.structure import Structure
 from pathlib import Path
 import argparse
 import os
+import sys
 
 OK_GREEN = '\033[92m'
 FAIL_RED = '\033[91m'
@@ -14,28 +16,37 @@ NO_YELLOW = '\033[93m'
 ENDC = '\033[0m'
 
 def main():
+    config = load_config()
     parser = argparse.ArgumentParser(description="Argument parser to generate rmg_inputs from POSCAR files")
 
     # Add arguments
 
     # Input and ouput paths, files and names
-    parser.add_argument("--poscars_directory", "-pd", help="Path to the directory tree with editable POSCARs", required=True)
+    parser.add_argument("--parent_directory", "-pd", help="Path to the directory tree with editable POSCARs", required=True)
     parser.add_argument("--rmg_yaml", "-ry", help="Path to the YAML file with RMG parameters", required=True)
     parser.add_argument("--rmg_submission", "-rs", help="Path to a rmg submission script template", required=True)
     parser.add_argument("--rmg_name", "-rn", help="Naming convention for the RMG files to check/generate", default='rmg_input')
     parser.add_argument("--magmom_name", "-mn", help="Naming convention for the Magmom files to check", default='MAGMOM.json')
 
     # Parameters for the submission script
-    parser.add_argument("--allocation", "-a", help="Allocation", type=str, default='MAT201')
-    parser.add_argument("--partition", "-p", help="Partition", type=str, default='batch')
-    parser.add_argument("--nodes", "-n", help="Number of nodes to request", type=int, default=0)
-    parser.add_argument("--gpus_per_node", "-g", help="Number of gpus per node on your hpc", type=int, default=8)
+    parser.add_argument("--allocation", "-a", help="Allocation", type=str, default=config.get("allocation", "ALLOCATION"))
+    parser.add_argument("--partition", "-p", help="Partition", type=str, default=config.get("partition", "batch"))
+    parser.add_argument("--nodes", "-n", help="Number of nodes to request", type=int, default=config.get("nodes", 0))
+    parser.add_argument("--gpus_per_node", "-g", help="Number of gpus per node on your hpc", type=int, default=config.get("gpus_per_node", 1))
+    parser.add_argument("--rmg_executable", "-re", help="Path to rmg executable", default=config.get("rmg_executable", None))
+    parser.add_argument("--cores_per_task", "-cpt", help="Cores per task", type=int, default=config.get("cores_per_task", 1))
+    parser.add_argument("--gpus_per_task", "-gpt", help="GPUs per task", type=int, default=config.get("gpus_per_task", 1))
+
     parser.add_argument("--electrons_per_gpu", "-epg", help="Number of valence electrons (based on atoms and PPs) per gpu", type=int, default=10)
     parser.add_argument("--debug", "-d", help="Whether to write debug QOS to submission script", action="store_true")
-    parser.add_argument("--time", "-t", help="Calculation wall time, with format hours:minutes:seconds", type=str, default="02:00:00")
+    parser.add_argument("--time", "-t", help="Calculation wall time, with default format hours:minutes:seconds", type=str, default=config.get("time", "02:00:00"))
 
     # Parse arguments and run function
     args = parser.parse_args()
+    if not args.rmg_executable:
+        print('No valid rmg_executable path provided! check ~/.pyRMG/config.yml')
+        sys.exit(1)
+
     generate(args)
     return
 
@@ -50,26 +61,35 @@ def write_text(text, path):
         file.write(text)
     return 
 
-def create_rmg_submission(copy_path, write_path, allocation, job_name, nodes, gpus_per_node, time, rmg_file_path, debug):
+def create_rmg_submission(copy_path, write_path, nodes, args):
     ''' Reads a template submission file from copy_path and edits it with user parameters before writing it to write_path'''
     submission_lines = read_text(copy_path)
     lines = submission_lines.split('\n')
     final_lines = ''
-    write_debug = debug
+    write_debug = args.debug
     for i, line in enumerate(lines):
         if '{ALLOCATION}' in line:
-            line = line.replace('{ALLOCATION}', allocation)
+            line = line.replace('{ALLOCATION}', args.allocation)
+        if '{PARTITION}' in line:
+            line = line.replace('{PARTITION}', args.partition)
+        if '{RMG_EXECUTABLE}' in line:
+            line = line.replace('{RMG_EXECUTABLE}', args.rmg_executable)
+        if '{CORES_PER_TASK}' in line:
+            line = line.replace('{CORES_PER_TASK}', str(args.cores_per_task))
+        if '{GPUS_PER_TASK}' in line:
+            line = line.replace('{GPUS_PER_TASK}', str(args.gpus_per_task))
         if '{JOB_NAME}' in line:
-            line = line.replace('{JOB_NAME}', job_name.replace(' ', '')) # Get rid of spaces
+            line = line.replace('{JOB_NAME}', args.rmg_name.replace(' ', '')) # Get rid of spaces
         if '{NODES}' in line:
             line = line.replace('{NODES}', str(nodes))
         if '{TIME}' in line:
-            line = line.replace('{TIME}', time)
+            line = line.replace('{TIME}', args.time)
         if '{RMG_FILE_PATH}' in line:
-            line = line.replace('{RMG_FILE_PATH}', rmg_file_path)
+            line = line.replace('{RMG_FILE_PATH}', args.rmg_name)
         if '{GPUS_PER_NODE}' in line:
-            line = line.replace('{GPUS_PER_NODE}', str(gpus_per_node))
+            line = line.replace('{GPUS_PER_NODE}', str(args.gpus_per_node))
         final_lines += line + '\n'
+
         if "SBATCH -p" in line and write_debug is True:
             final_lines += '#SBATCH -q debug\n#'
             write_debug = False
@@ -77,7 +97,7 @@ def create_rmg_submission(copy_path, write_path, allocation, job_name, nodes, gp
     return
 
 def generate(args):
-    abs_poscars_directory = os.path.abspath(args.poscars_directory)
+    abs_poscars_directory = os.path.abspath(args.parent_directory)
     for root, _, _ in os.walk(abs_poscars_directory):
         generate_inputs = True
 
@@ -147,13 +167,8 @@ def generate(args):
             print(f'Generating {submission_name} for {root}\n')
             create_rmg_submission(copy_path=args.rmg_submission, 
                                   write_path=write_path, 
-                                  allocation=args.allocation,
-                                  job_name=args.rmg_name, 
                                   nodes=rmg_input.target_nodes,
-                                  gpus_per_node=args.gpus_per_node,
-                                  time=args.time,
-                                  rmg_file_path=args.rmg_name,
-                                  debug=args.debug)
+                                  args=args)
 
     return 
 

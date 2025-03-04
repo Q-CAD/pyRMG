@@ -13,7 +13,7 @@
 #SBATCH -t {TIME}
 #
 # Requested queue
-#SBATCH -p batch
+#SBATCH -p {PARTITION}
 
 # Number of frontier nodes to use.
 #SBATCH -N {NODES}
@@ -47,9 +47,8 @@ module load rocm/6.0.0
 module load libfabric/1.15.2.0 # Reload previous libfabric
 
 # Set variables
-#RMG_BINARY=/lustre/orion/world-shared/mat151/elbriggs/bin/rmg-gpu-v6.0
-RMG_BINARY=/lustre/orion/world-shared/cph162/rjmorelock/rmgdft/build-frontier-gpu/rmg-gpu
+RMG_BINARY={RMG_EXECUTABLE}
 NNODES={NODES}
 GPUS_PER_NODE={GPUS_PER_NODE}
 
-srun -A {ALLOCATION} --ntasks=$(($GPUS_PER_NODE * $NNODES)) -u -c7 --gpus-per-node=$GPUS_PER_NODE  --ntasks-per-gpu=1 --gpu-bind=closest $RMG_BINARY {RMG_FILE_PATH}
+srun -A {ALLOCATION} --ntasks=$(($GPUS_PER_NODE * $NNODES)) -u -c{CORES_PER_TASK} --gpus-per-node=$GPUS_PER_NODE  --ntasks-per-gpu={GPUS_PER_TASK} --gpu-bind=closest $RMG_BINARY {RMG_FILE_PATH}

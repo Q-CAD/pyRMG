@@ -18,6 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
+config_pyrmg = "pyRMG.config_pyrmg_cli:main"
 generate_pyrmg = "pyRMG.generate_pyrmg_cli:main"
 submit_pyrmg = "pyRMG.submit_pyrmg_cli:main"
 matsemble_pyrmg = "pyRMG.matsemble_pyrmg_cli:main"

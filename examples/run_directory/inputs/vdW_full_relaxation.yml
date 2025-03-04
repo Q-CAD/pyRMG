@@ -8,7 +8,7 @@ vdw_corr: "DFT-D3"
 vdwdf_kernel_filepath: "/lustre/orion/world-shared/cph162/rjmorelock/rmgdft/XC/vdW_kernel_table"
 #coalesce_states: True
 #coalesce_factor: 4
-max_md_steps: 100 # Acts as max ionic steps
+max_md_steps: 50 # Acts as max ionic steps
 start_mode: "LCAO Start"
 #localize_localpp: True
 localize_projectors: False
@@ -20,10 +20,11 @@ output_wave_function_file: "/dev/null"
 subdiag_driver: "scalapack"
 charge_mixing_type: "Broyden" # Default is Linear for multigrid
 charge_density_mixing: 0.05 # David's default 0.5
-max_scf_steps: 100 # Number provided by Wenchang
+max_scf_steps: 150 # Number provided by Wenchang
 potential_acceleration_constant_step: 1.5
 write_data_period: 50
-energy_convergence_criterion: 1.0e-8
+energy_convergence_criterion: 1.0e-10
+rms_convergence_criterion: 1.0e-08
 energy_output_units: "Hartrees"
 
 # Parameters that vary

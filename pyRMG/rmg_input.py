@@ -198,8 +198,9 @@ class RMGInput:
         if not target_nodes:
             oncv = ONCVValences()
             total_electrons = np.sum([oncv.get_valence(str(site.specie)) for site in structure_obj])
-            target_nodes = int(np.ceil(total_electrons / (electrons_per_gpu * gpus_per_node)))
-        
+            #target_nodes = int(np.ceil(total_electrons / (electrons_per_gpu * gpus_per_node)))
+            target_nodes = (total_electrons / (electrons_per_gpu * gpus_per_node))
+
         if 'cutoff' in input_args:
             wavefunction_grid = cls._generate_wavefunction_grid(structure_obj, input_args['cutoff'])
             input_args['wavefunction_grid'] = wavefunction_grid

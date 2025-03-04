@@ -69,5 +69,5 @@ generate_pyrmg -pd . -ry inputs/vdW_full_relaxation.yml -rs inputs/frontier_rmg.
 
 # Step 2: Run the main Flux submission workflow; can specify arguments
 echo "Running the main Flux submission workflow..."
-srun -N $SLURM_NNODES -n $SLURM_NNODES --external-launcher --mpi=pmi2 --gpu-bind=closest flux start matsemble_pyrmg -rid .
+srun -N $SLURM_NNODES -n $SLURM_NNODES --external-launcher --mpi=pmi2 --gpu-bind=closest flux start matsemble_pyrmg -pd .
 
