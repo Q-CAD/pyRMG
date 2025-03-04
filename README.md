@@ -1,4 +1,5 @@
 # pyRMG
+![alt text](RMG_DFT.png?raw=true)
 
 ## Overview
 `pyRMG` enables the rapid auto-generation of [RMG DFT](https://github.com/RMGDFT) input files from VASP POSCAR files for high-throughput calculations. `pyRMG` is currently (Feb. 2025) built off of the develop branch of RMG, and all features may not work properly for other releases.
