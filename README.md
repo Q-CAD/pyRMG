@@ -24,13 +24,20 @@ cd pyrmg
 pip install -e .
 ```
 
+Then, create the `config.yml` file with your user settings, which will be used as defaults for `generate_pyrmg`. 
+
+```bash
+config pyrmg --allocation MAT123 --partition batch --gpus_per_node 8 --rmg_executable /path/to/your/executable
+```
+
 ## Executables
+`config_pyrmg_cli.py` or `config_pyrmg` - Used to create the configuration .yml file in ~/.pyRMG/. Sets the default rmg executable installation, as well as default information for the system. Setting `nodes: 0` enables node auto-assignment using `processor_grid_search`.   
 
-`submit_pyrmg_cli.py` - Used to submit a directory tree of RMG jobs as singular submissions, i.e., multiple single jobs. Takes the path with RMG input files as required input. 
+`submit_pyrmg_cli.py` or `submit_pyrmg` - Used to submit a directory tree of RMG jobs as singular submissions, i.e., multiple single jobs. Takes the path with RMG input files as required input. 
 
-`generate_pyrmg_cli.py` - Used to construct RMG input files and submission files (generated from templates in `submission_templates`) from POSCAR files in a subdirectory tree. Takes the POSCARs directory path, a .yml file with RMG input parameters, and a submission script template as required inputs. 
+`generate_pyrmg_cli.py` or `generate_pyrmg` - Used to construct RMG input files and submission files (generated from templates in `submission_templates`) from POSCAR files in a subdirectory tree. Takes the POSCARs directory path, a .yml file with RMG input parameters, and a submission script template as required inputs. 
 
-`matsemble_pyrmg_cli.py` - The executable used to submit a directory tree of RMG jobs into a single Flux job submission. Does not require any inputs, as the default is to search current directory for RMG jobs.  
+`matsemble_pyrmg_cli.py` or `matsemble_pyrmg` - The executable used to submit a directory tree of RMG jobs into a single Flux job submission. Does not require any inputs, as the default is to search current directory for RMG jobs.  
 
 ## Examples
 
