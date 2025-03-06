@@ -7,6 +7,7 @@ class RMGLog:
     def __init__(self, directory_path):
         self.directory_path = directory_path
         self.logs_data = self._parse_logs()
+        self.logs_keys = list(self.logs_data.keys())
     
     def _parse_logs(self):
         log_files = glob.glob(os.path.join(self.directory_path, 'rmg_input.*.log'))

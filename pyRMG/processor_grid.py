@@ -62,13 +62,14 @@ def find_best_divisible_combination(grid_values, initial_grid, combinations,
 
     return best_combo, best_value if best_value != float('inf') else None
 
-def get_processor_grid(grid_values, target_nodes, gpus_per_node=8):
+def get_processor_grid(grid_values, target_nodes, gpus_per_node=8, kpoint_distribution=1):
     """
     Determine the optimal processor grid distribution given grid values and constraints.
 
     :param grid_values: 3D grid values representing x, y, and z processor grid densities.
     :param target_nodes: Total number of desired nodes.
     :param gpus_per_node: Number of GPUs per node.
+    :param kpoint_distribution: How to distribute over kpoints. 
     :return: Optimal processor grid as a string and required number of nodes.
     """
     # Normalize grid values based on the smallest grid size
@@ -84,7 +85,7 @@ def get_processor_grid(grid_values, target_nodes, gpus_per_node=8):
         x=np.prod(best_processor_grid), sigma=np.std(grid_values), x_ideal=target_nodes * gpus_per_node
     )
 
-    print(best_processor_grid, best_function_value)
+    #print(best_processor_grid, best_function_value)
     while max_grid_factor > 0:
         # Generate candidate grid by scaling normalized grid
         candidate_grid = np.round(normalized_grid * max_grid_factor).astype(int)
@@ -107,11 +108,11 @@ def get_processor_grid(grid_values, target_nodes, gpus_per_node=8):
         # Update best configuration if improvement is found
         if best_value is not None and best_value < best_function_value:
             best_processor_grid, best_function_value = best_combo, best_value
-        print(best_processor_grid, best_function_value)
+        #print(best_processor_grid, best_function_value)
         max_grid_factor -= 1  # Reduce search space
 
     # Compute required number of nodes
-    total_nodes = max(1, math.ceil(np.prod(best_processor_grid) / gpus_per_node))
+    total_nodes = max(1, math.ceil((kpoint_distribution * np.prod(best_processor_grid)) / gpus_per_node))
 
     return ' '.join(map(str, best_processor_grid)), total_nodes
 

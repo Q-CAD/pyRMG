@@ -219,9 +219,14 @@ class RMGInput:
         else:
             raise KeyError(f'Input .yml must contain "kdelt" or "kpoint_mesh"')
 
+        if 'kpoint_distribution' in input_args:
+            kpoint_distribution = input_args['kpoint_distribution']
+        else:
+            kpoint_distribution = 1
+
         if not 'processor_grid' in input_args:
             processor_grid, target_nodes = get_processor_grid([int(g) for g in wavefunction_grid.split()],
-                                                              target_nodes, gpus_per_node)
+                                                              target_nodes, gpus_per_node, kpoint_distribution)
             input_args['processor_grid'] = processor_grid
 
         return cls(structure=structure_obj, keywords=input_args, site_params=site_params, target_nodes=target_nodes)
