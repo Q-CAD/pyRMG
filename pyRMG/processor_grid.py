@@ -28,17 +28,23 @@ def weighting_function(x, sigma, x_ideal, alpha=0.2, beta=0.1, tolerance=1e-1):
     return penalty * max(sigma, tolerance)  # Prevent zero sigma issues
 
 def evaluate_combination(grid_values, modified_grid, min_idx, mid_idx, max_idx,
-                         target_nodes, gpus_per_node, division_limit=16):
+                         target_nodes, gpus_per_node, division_limit=4):
     """Evaluate a specific GPU distribution combination and compute its weighted value."""
     total_gpus = np.prod(modified_grid)
     
     if 0 in modified_grid: # or total_gpus % gpus_per_node != 0:
         return None, None  # Invalid configuration
     
+    # New division limit check 
+    if not total_gpus % division_limit == 0:
+        return None, None
+    
+    # Old division limit check
+    #per_grid_density = grid_values / modified_grid
+    #if not all(x >= division_limit for x in per_grid_density):
+    #    return None, None  # Fails grid density constraint
+    
     per_grid_density = grid_values / modified_grid
-    if not all(x >= division_limit for x in per_grid_density):
-        return None, None  # Fails grid density constraint
-
     sigma = np.std(per_grid_density)
     target_gpus = target_nodes * gpus_per_node
     weighted_value = weighting_function(total_gpus, sigma, target_gpus)

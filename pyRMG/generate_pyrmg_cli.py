@@ -137,7 +137,8 @@ def generate(args):
                                 final_structure = structures[-1]
                                 print(f'Generating input for {root} from final structure of {image}')
                                 break  # Exit loop once we find a valid structure
-                    else:
+                    
+                    if not final_structure: # No valid structure found in log files
                         print(f'No valid structures found in logs for {root}; defaulting to {args.rmg_name}')
                         final_structure = rmg_input.structure
 
