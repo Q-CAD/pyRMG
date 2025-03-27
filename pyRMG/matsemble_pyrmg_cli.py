@@ -91,7 +91,12 @@ def execute_Flux(args):
             rmg_roots.append(root)
             rmg_input_paths.append(rmg_input_path)
             total_gpus_lst.append(total_gpus)
-    
+
+    # Sort so that the most resource-intensive are first
+    zipped_lists = zip(total_gpus_lst, rmg_roots, rmg_input_paths)
+    sorted_zipped_lists = sorted(zipped_lists, key=lambda x: x[0], reverse=True)
+    total_gpus_lst, rmg_roots, rmg_input_paths = zip(*sorted_zipped_lists)
+   
     task_list = list(np.arange(len(rmg_roots)))
     tasks_per_job = np.array(total_gpus_lst)
 

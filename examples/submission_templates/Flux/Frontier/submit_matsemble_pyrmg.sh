@@ -46,22 +46,22 @@ module load cray-fftw
 module load cray-hdf5-parallel
 module load craype-accel-amd-gfx90a
 module load rocm/6.0.0
-module load libfabric/1.15.2.0 # Reload previous libfabric
+#module load libfabric/1.15.2.0 # Reload previous libfabric
 
 #---------------------- SETUP FOR Flux + matensemble + pyRMG IN FRONTIER -------------------------------------------------------------------
 
 # Unload any currently loaded conda environments and activate matensemble_env, allowing pyRMG executables to run
 eval "$(command conda 'shell.bash' 'hook' 2> /dev/null)"
 conda deactivate
-conda activate /autofs/nccs-svm1_proj/cph162/python_environments/matensemble_env
+conda activate /lustre/orion/mat201/world-shared/QCAD/python_envs/matensemble_02252025
 
 # Load the spack environment and Flux
-. /autofs/nccs-svm1_proj/cph162/Sep_11_2024/spack/share/spack/setup-env.sh
-spack env activate spack_matensemble_env
+. /lustre/orion/mat201/world-shared/QCAD/Mar_4_2025/spack/share/spack/setup-env.sh
+spack env activate matensemble_spack_env
 spack load flux-sched
 
 # Activate the matensemble_env with pyRMG installed within the spack
-conda activate /autofs/nccs-svm1_proj/cph162/python_environments/matensemble_env
+conda activate /lustre/orion/mat201/world-shared/QCAD/python_envs/matensemble_02252025
 
 # Step 1: Generate the new rmg_input files from any existing POSCAR or rmg_input.*.log files; can specify arguments
 echo "Generating new inputs..."
