@@ -28,7 +28,7 @@ def weighting_function(x, sigma, x_ideal, alpha=0.2, beta=0.1, tolerance=1e-1):
     return penalty * max(sigma, tolerance)  # Prevent zero sigma issues
 
 def evaluate_combination(grid_values, modified_grid, min_idx, mid_idx, max_idx,
-                         target_nodes, gpus_per_node, division_limit=4):
+                         target_nodes, gpus_per_node, division_limit=8):
     """Evaluate a specific GPU distribution combination and compute its weighted value."""
     total_gpus = np.prod(modified_grid)
     
