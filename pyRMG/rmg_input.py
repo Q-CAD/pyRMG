@@ -188,12 +188,14 @@ class RMGInput:
         site_params = {'selective_dynamics': cls._read_selective_dynamics(structure_obj), 
                        'magnetic_properties': cls._read_magnetic_occupancies(structure_obj)}
         
-        if not site_params['magnetic_properties']:
-            if magmom_path and os.path.exists(magmom_path):
-                with open(magmom_path, 'r') as f:
-                    site_params['magnetic_properties'] = [" ".join(map(str, mag)) for mag in json.load(f)]
-            else:
-                site_params['magnetic_properties'] = ["0.0 0.0 0.0" for site in structure_obj]
+        if magmom_path and os.path.exists(magmom_path):
+            print(f'Reading magnetic moments from {magmom_path}')
+            with open(magmom_path, 'r') as f:
+                site_params['magnetic_properties'] = [" ".join(map(str, mag)) for mag in json.load(f)]
+        elif site_params['magnetic_properties']:
+            pass
+        else:
+            site_params['magnetic_properties'] = ["0.0 0.0 0.0" for site in structure_obj]
 
         if not target_nodes:
             oncv = ONCVValences()
