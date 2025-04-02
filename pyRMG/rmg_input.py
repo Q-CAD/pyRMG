@@ -179,7 +179,7 @@ class RMGInput:
 
     @classmethod
     def from_yaml(cls, yaml_path, structure_path=None, structure_obj=None, magmom_path=None, 
-                  target_nodes=0, gpus_per_node=8, electrons_per_gpu=10):
+                  target_nodes=0, gpus_per_node=8, electrons_per_gpu=10, grid_divisibility_exponent=3):
         with open(yaml_path, 'r') as f:
             input_args = yaml.safe_load(f)
         
@@ -228,7 +228,8 @@ class RMGInput:
 
         if not 'processor_grid' in input_args:
             processor_grid, target_nodes = get_processor_grid([int(g) for g in wavefunction_grid.split()],
-                                                              target_nodes, gpus_per_node, kpoint_distribution)
+                                                              target_nodes, gpus_per_node, kpoint_distribution, 
+                                                              grid_divisibility_exponent)
             input_args['processor_grid'] = processor_grid
 
         return cls(structure=structure_obj, keywords=input_args, site_params=site_params, target_nodes=target_nodes)

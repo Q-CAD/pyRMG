@@ -28,7 +28,7 @@ def weighting_function(x, sigma, x_ideal, alpha=0.2, beta=0.1, tolerance=1e-1):
     return penalty * max(sigma, tolerance)  # Prevent zero sigma issues
 
 def evaluate_combination(grid_values, modified_grid, min_idx, mid_idx, max_idx,
-                         target_nodes, gpus_per_node, division_limit=8):
+                         target_nodes, gpus_per_node, grid_divisibility_exponent):
     """Evaluate a specific GPU distribution combination and compute its weighted value."""
     total_gpus = np.prod(modified_grid)
     
@@ -36,13 +36,8 @@ def evaluate_combination(grid_values, modified_grid, min_idx, mid_idx, max_idx,
         return None, None  # Invalid configuration
     
     # New division limit check 
-    if not total_gpus % division_limit == 0:
+    if not total_gpus % (2**grid_divisibility_exponent) == 0:
         return None, None
-    
-    # Old division limit check
-    #per_grid_density = grid_values / modified_grid
-    #if not all(x >= division_limit for x in per_grid_density):
-    #    return None, None  # Fails grid density constraint
     
     per_grid_density = grid_values / modified_grid
     sigma = np.std(per_grid_density)
@@ -52,36 +47,43 @@ def evaluate_combination(grid_values, modified_grid, min_idx, mid_idx, max_idx,
     return modified_grid.tolist(), weighted_value
 
 def find_best_divisible_combination(grid_values, initial_grid, combinations,
-                                    min_idx, mid_idx, max_idx, target_nodes, gpus_per_node):
+                                    min_idx, mid_idx, max_idx, target_nodes, 
+                                    gpus_per_node, grid_divisibility_exponent):
     """Find the optimal GPU distribution that minimizes the weighting function."""
     best_combo, best_value = None, float('inf')
 
     for combo in combinations:
-        modified_grid = initial_grid + np.array([combo[max_idx], combo[mid_idx], combo[min_idx]])
+        adjustment = [0, 0, 0]
+        adjustment[max_idx] = combo[0]
+        adjustment[mid_idx] = combo[1]
+        adjustment[min_idx] = combo[2]
+        modified_grid = initial_grid + np.array(adjustment)
         new_combo, weighted_value = evaluate_combination(
-            grid_values, modified_grid, min_idx, mid_idx, max_idx, target_nodes, gpus_per_node
+            grid_values, modified_grid, min_idx, mid_idx, max_idx, 
+            target_nodes, gpus_per_node, grid_divisibility_exponent
         )
         
         if new_combo and weighted_value < best_value:
             best_value = weighted_value
             best_combo = new_combo
-
+  
     return best_combo, best_value if best_value != float('inf') else None
 
-def get_processor_grid(grid_values, target_nodes, gpus_per_node=8, kpoint_distribution=1):
+def get_processor_grid(grid_values, target_nodes, gpus_per_node=8, kpoint_distribution=1, grid_divisibility_exponent=3):
     """
     Determine the optimal processor grid distribution given grid values and constraints.
 
     :param grid_values: 3D grid values representing x, y, and z processor grid densities.
     :param target_nodes: Total number of desired nodes.
     :param gpus_per_node: Number of GPUs per node.
-    :param kpoint_distribution: How to distribute over kpoints. 
+    :param kpoint_distribution: How to distribute over kpoints.
+    :param grid_divisibility_exponent: Exponential factor for grid divisibility. 
     :return: Optimal processor grid as a string and required number of nodes.
     """
     # Normalize grid values based on the smallest grid size
     normalized_grid = np.array(grid_values) / np.min(grid_values)
     min_idx, mid_idx, max_idx = get_min_middle_max_indices(normalized_grid)
-    
+
     # Set the upper limit for the lowest processor grid dimension
     max_grid_factor = int(np.ceil((target_nodes * gpus_per_node) ** (1/3)))
     
@@ -91,7 +93,6 @@ def get_processor_grid(grid_values, target_nodes, gpus_per_node=8, kpoint_distri
         x=np.prod(best_processor_grid), sigma=np.std(grid_values), x_ideal=target_nodes * gpus_per_node
     )
 
-    #print(best_processor_grid, best_function_value)
     while max_grid_factor > 0:
         # Generate candidate grid by scaling normalized grid
         candidate_grid = np.round(normalized_grid * max_grid_factor).astype(int)
@@ -108,7 +109,7 @@ def get_processor_grid(grid_values, target_nodes, gpus_per_node=8, kpoint_distri
         # Find the best valid GPU grid configuration
         best_combo, best_value = find_best_divisible_combination(
             grid_values, candidate_grid, combinations, min_idx, mid_idx, max_idx,
-            target_nodes, gpus_per_node
+            target_nodes, gpus_per_node, grid_divisibility_exponent
         )
 
         # Update best configuration if improvement is found
