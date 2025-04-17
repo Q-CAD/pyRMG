@@ -19,6 +19,12 @@ def main():
     config = load_config()
     parser = argparse.ArgumentParser(description="Argument parser to generate rmg_inputs from POSCAR files")
 
+    # Divisibility exponent check
+    def divisibility_exponent(exponent):
+        if int(exponent) < 3: 
+            raise argparse.ArgumentTypeError(f"--grid_divisibility_exponent = {exponent} must be greater than or equal to 3")
+        return int(exponent)
+
     # Add arguments
 
     # Input and ouput paths, files and names
@@ -38,7 +44,7 @@ def main():
     parser.add_argument("--gpus_per_task", "-gpt", help="GPUs per task", type=int, default=config.get("gpus_per_task", 1))
 
     parser.add_argument("--electrons_per_gpu", "-epg", help="Number of valence electrons (based on atoms and PPs) per gpu", type=int, default=10)
-    parser.add_argument("--grid_divisibility_exponent", "-gde", help="Exponential factor for processor grid divisibility, i.e., grid % 2^(gde) == 0", type=int, default=3)
+    parser.add_argument("--grid_divisibility_exponent", "-gde", help="Exponential factor for processor grid divisibility, i.e., grid % 2^(gde) == 0", type=divisibility_exponent, default=3)
     parser.add_argument("--debug", "-d", help="Whether to write debug QOS to submission script", action="store_true")
     parser.add_argument("--time", "-t", help="Calculation wall time, with default format hours:minutes:seconds", type=str, default=config.get("time", "02:00:00"))
 

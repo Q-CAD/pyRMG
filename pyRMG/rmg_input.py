@@ -199,8 +199,13 @@ class RMGInput:
 
         if not target_nodes:
             oncv = ONCVValences()
-            total_electrons = np.sum([oncv.get_valence(str(site.specie)) for site in structure_obj])
-            #target_nodes = int(np.ceil(total_electrons / (electrons_per_gpu * gpus_per_node)))
+            try:
+                total_electrons = np.sum([oncv.get_valence(str(site.specie)) for site in structure_obj])
+                #target_nodes = int(np.ceil(total_electrons / (electrons_per_gpu * gpus_per_node)))
+            except TypeError:
+                print(f'Not all elements in {structure_obj.composition.reduced_formula} have ONCV pseudopotentials! Exiting...')
+                sys.exit(1)
+
             target_nodes = (total_electrons / (electrons_per_gpu * gpus_per_node))
 
         if 'cutoff' in input_args:
