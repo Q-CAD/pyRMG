@@ -35,10 +35,10 @@ def evaluate_combination(grid_values, modified_grid, min_idx, mid_idx, max_idx,
     if 0 in modified_grid: # or total_gpus % gpus_per_node != 0:
         return None, None  # Invalid configuration
     
-    # New division limit check 
+    # New division limit check
     if not total_gpus % (2**grid_divisibility_exponent) == 0:
         return None, None
-    
+   
     per_grid_density = grid_values / modified_grid
     sigma = np.std(per_grid_density)
     target_gpus = target_nodes * gpus_per_node

@@ -229,7 +229,9 @@ class RMGInput:
         if 'kpoint_distribution' in input_args:
             kpoint_distribution = input_args['kpoint_distribution']
         else:
-            kpoint_distribution = 1
+            # Externally set kpoint_distribution, similar to 'kpoint_distribution = -1' default
+            kpoint_distribution = int(np.prod([int(i) for i in input_args['kpoint_mesh'].split()]))
+            input_args['kpoint_distribution'] = kpoint_distribution
 
         if not 'processor_grid' in input_args:
             processor_grid, target_nodes = get_processor_grid([int(g) for g in wavefunction_grid.split()],
