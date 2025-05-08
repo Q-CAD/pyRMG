@@ -34,17 +34,17 @@ export MPICH_GPU_SUPPORT_ENABLED=0
 #
 # Load modules
 
-module load PrgEnv-gnu/8.5.0
-module load Core/24.00
+module load PrgEnv-gnu/8.6.0
+module load gcc-native/13.2
 module load cmake
-module load bzip2/1.0.8
+module load Core/24.00
+module load bzip2
 module load boost/1.85.0
 module load craype-x86-milan
 module load cray-fftw
 module load cray-hdf5-parallel
 module load craype-accel-amd-gfx90a
-module load rocm/6.0.0
-module load libfabric/1.15.2.0 # Reload previous libfabric
+module load rocm/6.3.1
 
 # Set variables
 RMG_BINARY={RMG_EXECUTABLE}

@@ -226,7 +226,7 @@ class RMGInput:
         else:
             raise KeyError(f'Input .yml must contain "kdelt" or "kpoint_mesh"')
 
-        if 'kpoint_distribution' in input_args:
+        if 'kpoint_distribution' in input_args and input_args['kpoint_distribution'] > 0:
             kpoint_distribution = input_args['kpoint_distribution']
         else:
             # Externally set kpoint_distribution, similar to 'kpoint_distribution = -1' default
