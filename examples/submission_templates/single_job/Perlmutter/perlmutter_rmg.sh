@@ -19,6 +19,15 @@
 # Number of frontier nodes to use.
 #SBATCH -N {NODES}
 #
+
+module purge
+module load PrgEnv-gnu
+module load cmake
+module load craype-x86-milan
+module load cray-fftw
+module load cray-hdf5-parallel
+module load cudatoolkit/12.4
+
 export SLURM_CPU_BIND="cores"
 #
 export OMP_NUM_THREADS=8
