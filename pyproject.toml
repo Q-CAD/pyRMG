@@ -14,7 +14,8 @@ authors = [
 dependencies = [
     "numpy",  # Add your dependencies here
     "ase",
-    "pymatgen"
+    "pymatgen",
+    "PyYAML"
 ]
 
 [project.scripts]

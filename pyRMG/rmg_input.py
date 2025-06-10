@@ -197,16 +197,17 @@ class RMGInput:
         else:
             site_params['magnetic_properties'] = ["0.0 0.0 0.0" for site in structure_obj]
 
+        fix_nodes = True
         if not target_nodes:
             oncv = ONCVValences()
             try:
                 total_electrons = np.sum([oncv.get_valence(str(site.specie)) for site in structure_obj])
-                #target_nodes = int(np.ceil(total_electrons / (electrons_per_gpu * gpus_per_node)))
             except TypeError:
                 print(f'Not all elements in {structure_obj.composition.reduced_formula} have ONCV pseudopotentials! Exiting...')
                 sys.exit(1)
 
             target_nodes = (total_electrons / (electrons_per_gpu * gpus_per_node))
+            fix_nodes = False
 
         if 'cutoff' in input_args:
             wavefunction_grid = cls._generate_wavefunction_grid(structure_obj, input_args['cutoff'])
@@ -236,7 +237,7 @@ class RMGInput:
         if not 'processor_grid' in input_args:
             processor_grid, target_nodes = get_processor_grid([int(g) for g in wavefunction_grid.split()],
                                                               target_nodes, gpus_per_node, kpoint_distribution, 
-                                                              grid_divisibility_exponent)
+                                                              grid_divisibility_exponent, fix_nodes)
             input_args['processor_grid'] = processor_grid
 
         return cls(structure=structure_obj, keywords=input_args, site_params=site_params, target_nodes=target_nodes)

@@ -21,8 +21,8 @@ def main():
 
     # Divisibility exponent check
     def divisibility_exponent(exponent):
-        if int(exponent) < 3: 
-            raise argparse.ArgumentTypeError(f"--grid_divisibility_exponent = {exponent} must be greater than or equal to 3")
+        if int(exponent) < 1: 
+            raise argparse.ArgumentTypeError(f"--grid_divisibility_exponent = {exponent} must be greater than or equal to 1")
         return int(exponent)
 
     # Add arguments
