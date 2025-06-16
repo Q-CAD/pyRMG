@@ -87,26 +87,24 @@ def get_processor_grid(grid_values, target_nodes, gpus_per_node=8, kpoint_distri
     :param grid_divisibility_exponent: Exponential factor for grid divisibility. 
     :return: Optimal processor grid as a string and required number of nodes.
     """
-    # Normalize grid values based on the smallest grid size
+    # Normalize grid values based on the smallest grid size and gpus_per_node
     normalized_grid = np.array(grid_values) / np.min(grid_values)
-    min_idx, mid_idx, max_idx = get_min_middle_max_indices(normalized_grid)
+    scaling_factor = math.ceil(np.prod(normalized_grid) / gpus_per_node)
+    renormalized_grid = np.array([math.ceil(g / scaling_factor) for g in normalized_grid])
+    min_idx, mid_idx, max_idx = get_min_middle_max_indices(renormalized_grid)
 
     # Set the upper limit for the lowest processor grid dimension
     max_grid_factor = int(np.ceil((target_nodes * gpus_per_node) ** (1/3)))
     
     # Initialize starting processor grid
-    best_processor_grid = np.floor(normalized_grid).astype(int)
+    best_processor_grid = np.floor(renormalized_grid).astype(int)
     best_function_value = float('inf')
-    '''
-    best_function_value = weighting_function(
-        x=np.prod(best_processor_grid), sigma=np.std(grid_values), x_ideal=target_nodes * gpus_per_node
-    )
-    '''
+    
     while max_grid_factor > 0:
         # Generate candidate grid by scaling normalized grid
-        candidate_grid = np.round(normalized_grid * max_grid_factor).astype(int)
+        candidate_grid = np.round(renormalized_grid * max_grid_factor).astype(int)
         total_gpus = np.prod(candidate_grid)
-        max_shift_factor = int(np.ceil((max_grid_factor / 2) * np.ceil(normalized_grid[max_idx])))
+        max_shift_factor = int(np.ceil((max_grid_factor / 2) * np.ceil(renormalized_grid[max_idx])))
 
         # Generate possible shifts for GPU allocation
         max_shifts = generate_gpu_mapping(candidate_grid[max_idx], max_shift_factor)
@@ -122,15 +120,14 @@ def get_processor_grid(grid_values, target_nodes, gpus_per_node=8, kpoint_distri
             target_nodes, gpus_per_node, grid_divisibility_exponent, fix_nodes
         )
 
-        #print(best_combo, best_value)
-
         # Update best configuration if improvement is found
         if best_value is not None and best_value < best_function_value:
             best_processor_grid, best_function_value = best_combo, best_value
         max_grid_factor -= 1  # Reduce search space
 
     # Compute required number of nodes
-    total_nodes = max(1, math.ceil((kpoint_distribution * np.prod(best_processor_grid)) / gpus_per_node))
+    total_nodes = math.ceil(np.prod(best_processor_grid) / gpus_per_node)
+    total_nodes = max(1, kpoint_distribution * total_nodes)
 
     return ' '.join(map(str, best_processor_grid)), total_nodes
 

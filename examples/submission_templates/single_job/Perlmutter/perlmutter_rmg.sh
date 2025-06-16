@@ -16,7 +16,7 @@
 # Requested queue
 #SBATCH -q {PARTITION}
 
-# Number of frontier nodes to use.
+# Number of perlmutter nodes to use.
 #SBATCH -N {NODES}
 #
 
@@ -29,11 +29,10 @@ module load cray-hdf5-parallel
 module load cudatoolkit/12.4
 
 export SLURM_CPU_BIND="cores"
-#
 export OMP_NUM_THREADS=8
 export RMG_NUM_THREADS=9
 export OMP_WAIT_POLICY="passive"
-#
+
 # Load modules
 
 # Set variables
