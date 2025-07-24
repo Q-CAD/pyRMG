@@ -32,15 +32,18 @@ def main():
     parser.add_argument("--rmg_yaml", "-ry", help="Path to the YAML file with RMG parameters", required=True)
     parser.add_argument("--rmg_submission", "-rs", help="Path to a rmg submission script template", required=True)
     parser.add_argument("--rmg_name", "-rn", help="Naming convention for the RMG files to check/generate", default='rmg_input')
-    parser.add_argument("--magmom_name", "-mn", help="Naming convention for the Magmom files to check", default='MAGMOM.json')
+    parser.add_argument("--structure_filename", "-sfn", help="Filename to be checked for and read by pymatgen.core.Structure. Supported formats include POSCAR, .cif", 
+                        default='POSCAR') 
+    parser.add_argument("--magmom_name", "-mn", help="Naming convention for the .json files containing magnetic moments", default='MAGMOM.json')
 
     # Parameters for the submission script
     parser.add_argument("--allocation", "-a", help="Allocation", type=str, default=config.get("allocation", "ALLOCATION"))
     parser.add_argument("--partition", "-p", help="Partition", type=str, default=config.get("partition", "batch"))
     parser.add_argument("--nodes", "-n", help="Number of nodes to request", type=int, default=config.get("nodes", 0))
-    parser.add_argument("--gpus_per_node", "-g", help="Number of gpus per node on your hpc", type=int, default=config.get("gpus_per_node", 1))
+    parser.add_argument("--cpus_per_node", "-c", help="Number of cpus per node on your resource", type=int, default=config.get("cpus_per_node", 1))
+    parser.add_argument("--gpus_per_node", "-g", help="Number of gpus per node on your resource", type=int, default=config.get("gpus_per_node", 1))
     parser.add_argument("--rmg_executable", "-re", help="Path to rmg executable", default=config.get("rmg_executable", None))
-    parser.add_argument("--cores_per_task", "-cpt", help="Cores per task", type=int, default=config.get("cores_per_task", 1))
+    parser.add_argument("--cpus_per_task", "-cpt", help="CPUs per task", type=int, default=config.get("cpus_per_task", 1))
     parser.add_argument("--gpus_per_task", "-gpt", help="GPUs per task", type=int, default=config.get("gpus_per_task", 1))
 
     parser.add_argument("--electrons_per_gpu", "-epg", help="Number of valence electrons (based on atoms and PPs) per gpu", type=int, default=10)
@@ -81,8 +84,8 @@ def create_rmg_submission(copy_path, write_path, nodes, args):
             line = line.replace('{PARTITION}', args.partition)
         if '{RMG_EXECUTABLE}' in line:
             line = line.replace('{RMG_EXECUTABLE}', args.rmg_executable)
-        if '{CORES_PER_TASK}' in line:
-            line = line.replace('{CORES_PER_TASK}', str(args.cores_per_task))
+        if '{CPUS_PER_TASK}' in line:
+            line = line.replace('{CPUS_PER_TASK}', str(args.cpus_per_task))
         if '{GPUS_PER_TASK}' in line:
             line = line.replace('{GPUS_PER_TASK}', str(args.gpus_per_task))
         if '{JOB_NAME}' in line:
@@ -93,6 +96,8 @@ def create_rmg_submission(copy_path, write_path, nodes, args):
             line = line.replace('{TIME}', args.time)
         if '{RMG_FILE_PATH}' in line:
             line = line.replace('{RMG_FILE_PATH}', args.rmg_name)
+        if '{CPUS_PER_NODE}' in line:
+            line = line.replace('{CPUS_PER_NODE}', str(args.cpus_per_node))
         if '{GPUS_PER_NODE}' in line:
             line = line.replace('{GPUS_PER_NODE}', str(args.gpus_per_node))
         final_lines += line + '\n'
@@ -124,14 +129,14 @@ def generate(args):
                 print(f'{FAIL_RED}Unconverged {convergence_checker.calculation_mode} job in {root}, inputs generated.{ENDC}')
 
         # Choose the input structure
-        poscar_path = os.path.join(root, 'POSCAR')
+        structure_path = os.path.join(root, args.structure_filename)
         rmg_input_path = os.path.join(root, args.rmg_name)
         available_logs = Submitter.find_files(root, 'rmg_input.*.log')
         final_structure = None
 
         if generate_inputs:
             magmom_path = os.path.join(root, args.magmom_name) if os.path.exists(os.path.join(root, args.magmom_name)) else None
-            if os.path.exists(poscar_path): 
+            if os.path.exists(structure_path): 
                 if os.path.exists(rmg_input_path):
                     rmg_input = RMGInput(input_file=rmg_input_path)
                     if available_logs:
@@ -152,8 +157,8 @@ def generate(args):
                     for prop_key, prop_value in rmg_input.site_params.items():
                         final_structure.add_site_property(prop_key, prop_value)
                 else:
-                    final_structure = Structure.from_file(poscar_path)
-                    print(f'No valid structures found in logs for {root}; defaulting to POSCAR')
+                    final_structure = Structure.from_file(structure_path)
+                    print(f'No valid structures found in logs for {root}; defaulting to {args.structure_filename}')
             else: # Can't find structure to generate from
                 continue
         

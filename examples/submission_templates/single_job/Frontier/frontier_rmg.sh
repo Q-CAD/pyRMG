@@ -51,4 +51,4 @@ RMG_BINARY={RMG_EXECUTABLE}
 NNODES={NODES}
 GPUS_PER_NODE={GPUS_PER_NODE}
 
-srun -A {ALLOCATION} --ntasks=$(($GPUS_PER_NODE * $NNODES)) -u -c{CORES_PER_TASK} --gpus-per-node=$GPUS_PER_NODE  --ntasks-per-gpu={GPUS_PER_TASK} --gpu-bind=closest $RMG_BINARY {RMG_FILE_PATH}
+srun -A {ALLOCATION} --ntasks=$(($GPUS_PER_NODE * $NNODES)) -u -c{CPUS_PER_TASK} --gpus-per-node=$GPUS_PER_NODE  --ntasks-per-gpu={GPUS_PER_TASK} --gpu-bind=closest $RMG_BINARY {RMG_FILE_PATH}

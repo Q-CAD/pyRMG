@@ -12,13 +12,14 @@ def main():
     # System-specific parameters
     parser.add_argument("--allocation", "-a", type=str, required=True, help="Job allocation name")
     parser.add_argument("--partition", "-p", type=str, required=True, help="Cluster partition")
-    parser.add_argument("--gpus_per_node", "-gpn", type=int, required=True, help="GPUs per node")
     parser.add_argument("--time", "-t", type=str, required=True, help="Job time limit (HH:MM:SS)")
     parser.add_argument("--rmg_executable", "-re", type=str, required=True, help="Path to RMG executable")
     
     # More general across RMG installations 
     parser.add_argument("--nodes", "-n", type=int, default=0, help="Number of nodes; setting nodes = 0 enables auto-node assignment!")
-    parser.add_argument("--cores_per_task", "-cpt", type=int, default=7, help="Number of cores to use per RMG task")
+    parser.add_argument("--cpus_per_node", "-cpn", type=int, default=64, help="Number of CPUs per node on resource")
+    parser.add_argument("--cpus_per_task", "-cpt", type=int, default=7, help="Number of cores to use per RMG task")
+    parser.add_argument("--gpus_per_node", "-gpn", type=int, default=8, help="Number of GPUs per node on resource")
     parser.add_argument("--gpus_per_task", "-gpt", type=int, default=1, help="Number of GPUs to use per RMG task")
 
     args = parser.parse_args()
@@ -31,10 +32,11 @@ def main():
         "allocation": args.allocation,
         "partition": args.partition,
         "nodes": args.nodes,
+        "cpus_per_node": args.cpus_per_node, 
         "gpus_per_node": args.gpus_per_node,
         "time": args.time,
         "rmg_executable": args.rmg_executable,
-        "cores_per_task": args.cores_per_task,
+        "cpus_per_task": args.cpus_per_task,
         "gpus_per_task": args.gpus_per_task
     }
 

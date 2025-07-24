@@ -199,16 +199,11 @@ class RMGInput:
 
         fix_nodes = True
         if not target_nodes:
-            oncv = ONCVValences()
-            try:
-                total_electrons = np.sum([oncv.get_valence(str(site.specie)) for site in structure_obj])
-            except TypeError:
-                print(f'Not all elements in {structure_obj.composition.reduced_formula} have ONCV pseudopotentials! Exiting...')
-                sys.exit(1)
-
+            total_electrons = cls._sum_electrons(structure_obj)
             target_nodes = (total_electrons / (electrons_per_gpu * gpus_per_node))
             fix_nodes = False
-
+        
+        # User-supplied tag logic
         if 'cutoff' in input_args:
             wavefunction_grid = cls._generate_wavefunction_grid(structure_obj, input_args['cutoff'])
             input_args['wavefunction_grid'] = wavefunction_grid
@@ -234,6 +229,11 @@ class RMGInput:
             kpoint_distribution = int(np.prod([int(i) for i in input_args['kpoint_mesh'].split()]))
             input_args['kpoint_distribution'] = kpoint_distribution
 
+        if 'unoccupied_fraction' in input_args:
+            total_electrons = cls._sum_electrons(structure_obj)
+            input_args['unoccupied_states_per_kpoint'] = int(input_args['unoccupied_fraction'] * total_electrons)
+            input_args.pop('unoccupied_fraction', 0)
+
         if not 'processor_grid' in input_args:
             processor_grid, target_nodes = get_processor_grid([int(g) for g in wavefunction_grid.split()],
                                                               target_nodes, gpus_per_node, kpoint_distribution, 
@@ -242,6 +242,16 @@ class RMGInput:
 
         return cls(structure=structure_obj, keywords=input_args, site_params=site_params, target_nodes=target_nodes)
     
+    @staticmethod
+    def _sum_electrons(structure):
+        oncv = ONCVValences()
+        try:
+            total_electrons = np.sum([oncv.get_valence(str(site.specie)) for site in structure])
+            return total_electrons
+        except TypeError:
+            print(f'Not all elements in {structure_obj.composition.reduced_formula} have ONCV pseudopotentials! Exiting...')
+            sys.exit(1)
+
     @staticmethod
     def _read_selective_dynamics(structure):
         return [" ".join("1" if x else "0" for x in sd) if "selective_dynamics" in structure.site_properties else "1 1 1"
