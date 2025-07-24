@@ -5,7 +5,7 @@ import os
 import sys
 from pymatgen.core import Structure
 import numpy as np
-from pyRMG.valence import ONCVValences
+from pyRMG.valence import ONCVValences, GeneralValences
 from pyRMG.processor_grid import get_processor_grid
 
 # Conversion factor from Bohr to Angstrom
@@ -178,8 +178,8 @@ class RMGInput:
         return writelines
 
     @classmethod
-    def from_yaml(cls, yaml_path, structure_path=None, structure_obj=None, magmom_path=None, 
-                  target_nodes=0, gpus_per_node=8, electrons_per_gpu=10, grid_divisibility_exponent=3):
+    def from_yaml(cls, yaml_path, structure_path=None, structure_obj=None, pseudopotentials_directory='', 
+                  magmom_path=None, target_nodes=0, gpus_per_node=8, electrons_per_gpu=10, grid_divisibility_exponent=3):
         with open(yaml_path, 'r') as f:
             input_args = yaml.safe_load(f)
         
@@ -197,12 +197,6 @@ class RMGInput:
         else:
             site_params['magnetic_properties'] = ["0.0 0.0 0.0" for site in structure_obj]
 
-        fix_nodes = True
-        if not target_nodes:
-            total_electrons = cls._sum_electrons(structure_obj)
-            target_nodes = (total_electrons / (electrons_per_gpu * gpus_per_node))
-            fix_nodes = False
-        
         # User-supplied tag logic
         if 'cutoff' in input_args:
             wavefunction_grid = cls._generate_wavefunction_grid(structure_obj, input_args['cutoff'])
@@ -229,12 +223,24 @@ class RMGInput:
             kpoint_distribution = int(np.prod([int(i) for i in input_args['kpoint_mesh'].split()]))
             input_args['kpoint_distribution'] = kpoint_distribution
 
+        pseudo_dct = {}
+        if 'pseudo_dir' in input_args:
+            pseudopotentials_directory = input_args['pseudo_dir'] # Overwrite default from passed .yml file
+            if 'pseudopotential' in input_args:
+                pseudo_dct = cls._parse_map(input_args['pseudopotential'])
+
+        total_electrons = cls._sum_electrons(structure_obj, pseudopotentials_directory, pseudo_dct)
+
         if 'unoccupied_fraction' in input_args:
-            total_electrons = cls._sum_electrons(structure_obj)
             input_args['unoccupied_states_per_kpoint'] = int(input_args['unoccupied_fraction'] * total_electrons)
             input_args.pop('unoccupied_fraction', 0)
 
+        # Processor grid generation
         if not 'processor_grid' in input_args:
+            fix_nodes = True
+            if not target_nodes:
+                target_nodes = (total_electrons / (electrons_per_gpu * gpus_per_node))
+                fix_nodes = False
             processor_grid, target_nodes = get_processor_grid([int(g) for g in wavefunction_grid.split()],
                                                               target_nodes, gpus_per_node, kpoint_distribution, 
                                                               grid_divisibility_exponent, fix_nodes)
@@ -243,10 +249,21 @@ class RMGInput:
         return cls(structure=structure_obj, keywords=input_args, site_params=site_params, target_nodes=target_nodes)
     
     @staticmethod
-    def _sum_electrons(structure):
-        oncv = ONCVValences()
+    def _parse_map(text: str) -> dict[str, str]:
+        tokens = text.split()
+        if len(tokens) % 2 != 0:
+            raise ValueError("Expected an even number of tokens (key/value pairs) from 'pseudopotential' input parameter")
+        # take every even token as a key, the following one as its value
+        return dict(zip(tokens[0::2], tokens[1::2]))
+
+    @staticmethod
+    def _sum_electrons(structure, pseudopotentials_directory, pseudo_dct):
+        if pseudopotentials_directory == '': 
+            valence = ONCVValences()
+        else:
+            valence = GeneralValences(pseudopotentials_directory, pseudo_dct) 
         try:
-            total_electrons = np.sum([oncv.get_valence(str(site.specie)) for site in structure])
+            total_electrons = np.sum([valence.get_valence(str(site.specie)) for site in structure])
             return total_electrons
         except TypeError:
             print(f'Not all elements in {structure_obj.composition.reduced_formula} have ONCV pseudopotentials! Exiting...')

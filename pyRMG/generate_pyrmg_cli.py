@@ -37,7 +37,7 @@ def main():
     parser.add_argument("--magmom_name", "-mn", help="Naming convention for the .json files containing magnetic moments", default='MAGMOM.json')
 
     # Parameters for the submission script
-    parser.add_argument("--allocation", "-a", help="Allocation", type=str, default=config.get("allocation", "ALLOCATION"))
+    parser.add_argument("--allocation", "-a", help="Allocation", type=str, default=config.get("allocation", "XXX"))
     parser.add_argument("--partition", "-p", help="Partition", type=str, default=config.get("partition", "batch"))
     parser.add_argument("--nodes", "-n", help="Number of nodes to request", type=int, default=config.get("nodes", 0))
     parser.add_argument("--cpus_per_node", "-c", help="Number of cpus per node on your resource", type=int, default=config.get("cpus_per_node", 1))
@@ -45,6 +45,7 @@ def main():
     parser.add_argument("--rmg_executable", "-re", help="Path to rmg executable", default=config.get("rmg_executable", None))
     parser.add_argument("--cpus_per_task", "-cpt", help="CPUs per task", type=int, default=config.get("cpus_per_task", 1))
     parser.add_argument("--gpus_per_task", "-gpt", help="GPUs per task", type=int, default=config.get("gpus_per_task", 1))
+    parser.add_argument("--pseudopotentials_directory", "-pspd", help="Path to pseudopotentials directory", type=str, default=config.get("pseudopotentials_directory", '')) 
 
     parser.add_argument("--electrons_per_gpu", "-epg", help="Number of valence electrons (based on atoms and PPs) per gpu", type=int, default=10)
     parser.add_argument("--grid_divisibility_exponent", "-gde", help="Exponential factor for processor grid divisibility", type=divisibility_exponent, default=3)
@@ -167,6 +168,7 @@ def generate(args):
             rmg_input = RMGInput.from_yaml(yaml_path=args.rmg_yaml, 
                                  structure_path=None,
                                  structure_obj=final_structure, 
+                                 pseudopotentials_directory=args.pseudopotentials_directory,
                                  magmom_path=magmom_path, 
                                  target_nodes=args.nodes, 
                                  gpus_per_node=args.gpus_per_node,

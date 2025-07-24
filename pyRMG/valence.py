@@ -1,3 +1,7 @@
+import sys
+import os
+import re
+
 class ONCVValences:
     def __init__(self):
         self.valence = {
@@ -16,6 +20,40 @@ class ONCVValences:
             "Xe": 18, "Y": 11, "Zn": 20, "Zr": 12
         }
     
+    def get_valence(self, element):
+        return self.valence.get(element, None)
+
+class GeneralValences:
+    def __init__(self, pseudopotential_directory, pseudo_dict):
+        '''pseudo_dict of form {"element": "pseudo_name"}
+        Currently supports .upf format'''
+        self.pseudopotential_directory = pseudopotential_directory
+        self.valence = self.make_valence_dictionary(pseudo_dict)
+
+    def make_valence_dictionary(self, pseudo_dict):
+        valence_dict = {}
+        for element in pseudo_dict:
+            if '.upf' in pseudo_dict[element]:
+                pseudo_path = os.path.join(self.pseudopotential_directory, pseudo_dict[element])
+                pattern = re.compile(r'z_valence="\s*([\d\.]+)"')
+                pattern_group = 1
+            else:
+                print(f'Pseudopotential format for {element} not currently supported; defaulting to internal valences')
+                valence_dict[element] = ONCVValences().valence[element]
+                continue
+
+            try:
+                with open(pseudo_path, 'r') as fh:
+                    for line in fh:
+                        m = pattern.search(line)
+                        if m:
+                            valence_dict[element] = float(m.group(pattern_group))
+            except FileNotFoundError:
+                print(f'Pseudopotential {valence_dct[element]} not found; defaulting to internal valences')
+                valence_dict[element] = ONCVValences().valence[element]
+
+        return valence_dict
+
     def get_valence(self, element):
         return self.valence.get(element, None)
 
