@@ -232,7 +232,8 @@ class RMGInput:
         total_electrons = cls._sum_electrons(structure_obj, pseudopotentials_directory, pseudo_dct)
 
         if 'unoccupied_fraction' in input_args:
-            input_args['unoccupied_states_per_kpoint'] = int(input_args['unoccupied_fraction'] * total_electrons)
+            electronic_states = np.ceil(0.5 * total_electrons)
+            input_args['unoccupied_states_per_kpoint'] = int(input_args['unoccupied_fraction'] * electronic_states)
             input_args.pop('unoccupied_fraction', 0)
 
         # Processor grid generation
