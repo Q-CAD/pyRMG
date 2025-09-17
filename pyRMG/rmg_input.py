@@ -3,6 +3,7 @@ import re
 import json
 import os
 import sys
+import math
 from pymatgen.core import Structure
 import numpy as np
 from pyRMG.valence import ONCVValences, GeneralValences
@@ -207,6 +208,7 @@ class RMGInput:
         else:
             raise KeyError(f'Input .yml must contain "cutoff" or "wavefunction_grid"')
         
+        # Kpoints from mesh density
         if 'kdelt' in input_args:
             kpoint_mesh = cls._generate_kpoint_mesh(structure_obj, input_args['kdelt'])
             input_args['kpoint_mesh'] = kpoint_mesh
@@ -216,6 +218,7 @@ class RMGInput:
         else:
             raise KeyError(f'Input .yml must contain "kdelt" or "kpoint_mesh"')
 
+        # Auto-generate kpoint distribution
         if 'kpoint_distribution' in input_args and input_args['kpoint_distribution'] > 0:
             kpoint_distribution = input_args['kpoint_distribution']
         else:
@@ -223,6 +226,7 @@ class RMGInput:
             kpoint_distribution = int(np.prod([int(i) for i in input_args['kpoint_mesh'].split()]))
             input_args['kpoint_distribution'] = kpoint_distribution
 
+        # Path to different pseudos than default
         pseudo_dct = {}
         if 'pseudo_dir' in input_args:
             pseudopotentials_directory = input_args['pseudo_dir'] # Overwrite default from passed .yml file
@@ -231,10 +235,31 @@ class RMGInput:
 
         total_electrons = cls._sum_electrons(structure_obj, pseudopotentials_directory, pseudo_dct)
 
+        # Set unoccupied levels; can improve convergence
         if 'unoccupied_fraction' in input_args:
             electronic_states = np.ceil(0.5 * total_electrons)
             input_args['unoccupied_states_per_kpoint'] = int(input_args['unoccupied_fraction'] * electronic_states)
             input_args.pop('unoccupied_fraction', 0)
+
+        # Per atom convergence criterion
+        if 'per_atom_energy' in input_args:
+            energy_convergence_criterion = input_args['per_atom_energy'] * len(structure_obj)
+            if energy_convergence_criterion < 1e-20:
+                energy_convergence_criterion = 1e-20
+            elif energy_convergence_criterion > 1e-07:
+                energy_convergence_criterion = 1e-07
+            else:
+                pass
+            input_args['energy_convergence_criterion'] = cls._round_sig(energy_convergence_criterion) 
+            input_args.pop('per_atom_energy', 0)
+
+        # Per atom rms convergence
+        if 'per_atom_rms' in input_args:
+            rms_convergence_criterion = input_args['per_atom_rms'] * len(structure_obj)
+            if rms_convergence_criterion > 1e-03:
+                rms_convergence_criterion = 1e-03
+            input_args['rms_convergence_criterion'] = cls._round_sig(rms_convergence_criterion)
+            input_args.pop('per_atom_rms', 0)
 
         # Processor grid generation
         if not 'processor_grid' in input_args:
@@ -305,8 +330,13 @@ class RMGInput:
     def _generate_kpoint_mesh(structure, kdelt):
         kpoints = [int(max(1, np.rint(np.divide(mag, kdelt)))) for mag in np.multiply(structure.lattice.reciprocal_lattice.abc, BOHR_TO_ANGSTROM)]
         return " ".join([str(k) for k in kpoints])
-    
+   
     def _generate_keywords(self):
         self.keywords['positions'] = self.site_params['selective_dynamics']
         if 'cutoff' in self.input_args:
             self.keywords['wavefunction_grid'] = self._generate_wavefunction_grid(self.structure, self.input_args['cutoff'])
+
+    @staticmethod
+    def _round_sig(number, sig=3):
+        power = "{:e}".format(number).split('e')[1]
+        return round(number, -(int(power) - sig))

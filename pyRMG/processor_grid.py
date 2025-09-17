@@ -24,7 +24,7 @@ def generate_gpu_mapping(value, gpus_per_node=8):
 def weighting_function(x, sigma, x_ideal, alpha=0.2, beta=0.1, tolerance=1e-1):
     """Compute the weighting function to optimize GPU mapping selection."""
     penalty_factor = alpha if x < x_ideal else beta
-    penalty = penalty_factor * (x - x_ideal) ** 2 + x_ideal
+    penalty = penalty_factor * (np.abs(x - x_ideal) / x_ideal)
     return penalty * max(sigma, tolerance)  # Prevent zero sigma issues
 
 def evaluate_combination(grid_values, modified_grid, min_idx, mid_idx, max_idx,
