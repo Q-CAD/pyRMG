@@ -40,12 +40,12 @@ config pyrmg --allocation MAT123 --partition batch --gpus_per_node 8 --rmg_execu
 
 `matsemble_pyrmg_cli.py` or `matsemble_pyrmg` - The executable used to submit a directory tree of RMG jobs into a single Flux job submission. Does not require any inputs, as the default is to search current directory for RMG jobs.  
 
-## Examples
+## MatEnsemble
 
-NOTE: You must first activate the matensemble conda environment where `pyRMG` is installed in your shell instance. 
+To integrate `pyRMG` with [MatEnsemble](https://github.com/Q-CAD/MatEnsemble/tree/main), it is most convenient to create a `matensemble` conda environment where `pyRMG` can be installed. You must then make sure that Flux is supported on your machine, or can be activated via Spack.  
 
 ```bash
-conda activate /autofs/nccs-svm1_proj/cph162/python_environments/matensemble_env
+conda activate /path/to/your/matensemble_env
 ```
 
 Copy `examples/run_directory/` to your scratch directory. Navigate to this directory and run: 
@@ -54,7 +54,7 @@ Copy `examples/run_directory/` to your scratch directory. Navigate to this direc
 sbatch submit_matsemble_pyrmg.sh 
 ```
 
-This will instantiate and submit a Flux workflow to scf- and ionically-converge a bulk, vdW-layered Bi2Se3 calculation. 
+This provides an example to instantiate and submit a Flux workflow to scf- and ionically-converge a bulk, vdW-layered Bi2Se3 calculation. 
 
 ## License
 This project is licensed under the MIT License. 
