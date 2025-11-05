@@ -49,7 +49,7 @@ class GeneralValences:
                         if m:
                             valence_dict[element] = float(m.group(pattern_group))
             except FileNotFoundError:
-                print(f'Pseudopotential {valence_dct[element]} not found; defaulting to internal valences')
+                print(f'Pseudopotential {pseudo_dict[element]} not found; defaulting to internal valences')
                 valence_dict[element] = ONCVValences().valence[element]
 
         return valence_dict
