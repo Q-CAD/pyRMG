@@ -133,38 +133,40 @@ def generate(args):
         structure_path = os.path.join(root, args.structure_filename)
         rmg_input_path = os.path.join(root, args.rmg_name)
         available_logs = Submitter.find_files(root, 'rmg_input.*.log')
+        
+        rmg_input = RMGInput(input_file=rmg_input_path) if os.path.exists(rmg_input_path) else None
+        magmom_path = os.path.join(root, args.magmom_name) if os.path.exists(os.path.join(root, args.magmom_name)) else None
         final_structure = None
 
         if generate_inputs:
-            magmom_path = os.path.join(root, args.magmom_name) if os.path.exists(os.path.join(root, args.magmom_name)) else None
-            if os.path.exists(structure_path): 
-                if os.path.exists(rmg_input_path):
-                    rmg_input = RMGInput(input_file=rmg_input_path)
-                    if available_logs:
-                        rmg_logs = RMGLog(root)
-                        log_images = sorted(rmg_logs.logs_data.keys(), reverse=True)  # Sort in descending order
+            if available_logs:
+                rmg_logs = RMGLog(root)
+                log_images = sorted(rmg_logs.logs_data.keys(), reverse=True)  # Sort in descending order
+                        
+                for image in log_images:
+                    structures = rmg_logs.logs_data[image].get('structures', [])
+                    if structures:  # Ensure there are structures available
+                        print(f'Generating input for {root} from final structure of {image}')
+                        final_structure = structures[-1]
+                        break  # Exit loop once we find a valid structure
 
-                        for image in log_images:
-                            structures = rmg_logs.logs_data[image].get('structures', [])
-                            if structures:  # Ensure there are structures available
-                                final_structure = structures[-1]
-                                print(f'Generating input for {root} from final structure of {image}')
-                                break  # Exit loop once we find a valid structure
-                    
-                    if not final_structure: # No valid structure found in log files
-                        print(f'No valid structures found in logs for {root}; defaulting to {args.rmg_name}')
-                        final_structure = rmg_input.structure
+            elif rmg_input:
+                print(f'No valid structures found in logs for {root}; defaulting to {args.rmg_name}')
+                final_structure = rmg_input.structure
+            
+            elif os.path.exists(structure_path):
+                print(f'No valid structures found in logs or {args.rmg_name} for {root}; defaulting to {args.structure_filename}')
+                final_structure = Structure.from_file(structure_path)
 
-                    for prop_key, prop_value in rmg_input.site_params.items():
-                        final_structure.add_site_property(prop_key, prop_value)
-                else:
-                    final_structure = Structure.from_file(structure_path)
-                    print(f'No valid structures found in logs for {root}; defaulting to {args.structure_filename}')
-            else: # Can't find structure to generate from
+            else: # Cannot find a valid structure file
                 continue
-        
+                
         # Create the new rmg_input file if final_structure exists
         if final_structure:
+            if rmg_input:
+                for prop_key, prop_value in rmg_input.site_params.items():
+                    final_structure.add_site_property(prop_key, prop_value)
+
             rmg_input = RMGInput.from_yaml(yaml_path=args.rmg_yaml, 
                                  structure_path=None,
                                  structure_obj=final_structure, 
