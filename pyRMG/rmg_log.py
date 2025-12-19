@@ -11,8 +11,6 @@ class RMGLog:
     
     def _parse_logs(self):
         log_files = glob.glob(os.path.join(self.directory_path, 'rmg_input.*.log'))
-        poscar_paths = glob.glob(os.path.join(self.directory_path, 'POSCAR'))
-        original_structure = Structure.from_file(poscar_paths[-1]) if poscar_paths else None
         
         logs_data = {}
         bohr_factor = 1.8897259886  # Convert Bohr to Angstroms
@@ -56,11 +54,10 @@ class RMGLog:
                         except (NameError, IndexError):
                             continue
                     
-                    if len(current_specie) == len(original_structure):
-                        all_positions.append(current_position)
-                        all_species.append(current_specie)
-                        all_forces.append(current_force)
-                        current_position, current_specie, current_force = [], [], []
+                    all_positions.append(current_position)
+                    all_species.append(current_specie)
+                    all_forces.append(current_force)
+                    current_position, current_specie, current_force = [], [], []
                     
                     if "final total energy from eig sum" in line:
                         energies.append(float(line.split('=')[-1].strip().split()[0]))
@@ -77,7 +74,7 @@ class RMGLog:
                 lattice_angstroms = np.divide(np.array(check_lattices[i]), bohr_factor)
                 lattice_positions = np.divide(np.array(all_positions[i]), bohr_factor)
                 force_hartree_angstrom = np.multiply(np.array(all_forces[i]), bohr_rydberg)
-                #print(force_hartree_angstrom) 
+                
                 s = Structure(lattice=lattice_angstroms, species=all_species[i],
                               coords=lattice_positions, coords_are_cartesian=True)
                 structures.append(s)
