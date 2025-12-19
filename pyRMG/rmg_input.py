@@ -200,7 +200,8 @@ class RMGInput:
 
         # User-supplied tag logic
         if 'cutoff' in input_args:
-            wavefunction_grid = cls._generate_wavefunction_grid(structure_obj, input_args['cutoff'])
+            wavefunction_grid = cls._generate_wavefunction_grid(structure_obj, input_args['cutoff'], 
+                                                                grid_divisibility_exponent)
             input_args['wavefunction_grid'] = wavefunction_grid
             input_args.pop('cutoff', 0)
         elif 'wavefunction_grid' in input_args:
@@ -306,7 +307,7 @@ class RMGInput:
             for sd in structure.site_properties.get("magnetic_properties", [])]
 
     @staticmethod
-    def _generate_wavefunction_grid(structure, cutoff):
+    def _generate_wavefunction_grid(structure, cutoff, grid_divisibility_exponent):
         rca = np.pi / np.sqrt(cutoff) * BOHR_TO_ANGSTROM
         nx, ny, nz = np.rint(structure.lattice.abc / rca).astype(int)
 
@@ -319,12 +320,13 @@ class RMGInput:
             return h_max / h_min <= 1.1
         
         use_i = 1
-        for _ in range(4):
+        last_grid = (nx, ny, nz)
+        for _ in range(grid_divisibility_exponent):
             use_i *= 2
             nxg, nyg, nzg = grid_spacing_factors(nx, ny, nz, use_i)
             if anisotropy_check(structure, nxg, nyg, nzg):
-                break
-        return " ".join(str(n) for n in [nxg, nyg, nzg])
+                last_grid = (nxg, nyg, nzg)
+        return " ".join(str(n) for n in last_grid)
     
     @staticmethod
     def _generate_kpoint_mesh(structure, kdelt):
