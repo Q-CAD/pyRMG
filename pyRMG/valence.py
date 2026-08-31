@@ -1,6 +1,6 @@
-import sys
 import os
 import re
+
 
 class ONCVValences:
     def __init__(self):
@@ -19,9 +19,10 @@ class ONCVValences:
             "Tc": 15, "Te": 16, "Ti": 12, "Tl": 13, "V": 13,
             "Xe": 18, "Y": 11, "Zn": 20, "Zr": 12
         }
-    
+
     def get_valence(self, element):
         return self.valence.get(element, None)
+
 
 class GeneralValences:
     def __init__(self, pseudopotential_directory, pseudo_dict):
@@ -31,29 +32,39 @@ class GeneralValences:
         self.valence = self.make_valence_dictionary(pseudo_dict)
 
     def make_valence_dictionary(self, pseudo_dict):
+        """
+        Unlike the pyRMG original, this deliberately does not fall back to
+        ONCV defaults on a lookup failure -- once a pseudopotentials_directory
+        is explicitly given, every element it's asked to resolve must succeed
+        there, or this raises immediately. A silent fallback here would mean
+        pseudopotentials could quietly vary across a fitting run without any
+        indication, which is exactly the kind of hard-to-diagnose downstream
+        compatibility problem this is meant to prevent.
+        """
         valence_dict = {}
         for element in pseudo_dict:
-            if '.upf' in pseudo_dict[element]:
-                pseudo_path = os.path.join(self.pseudopotential_directory, pseudo_dict[element])
-                pattern = re.compile(r'z_valence="\s*([\d\.]+)"')
-                pattern_group = 1
-            else:
-                print(f'Pseudopotential format for {element} not currently supported; defaulting to internal valences')
-                valence_dict[element] = ONCVValences().valence[element]
-                continue
+            if '.upf' not in pseudo_dict[element]:
+                raise ValueError(
+                    f"Pseudopotential format for '{element}' ({pseudo_dict[element]}) "
+                    f"is not currently supported (only .upf)."
+                )
+
+            pseudo_path = os.path.join(self.pseudopotential_directory, pseudo_dict[element])
+            pattern = re.compile(r'z_valence="\s*([\d\.]+)"')
 
             try:
                 with open(pseudo_path, 'r') as fh:
                     for line in fh:
                         m = pattern.search(line)
                         if m:
-                            valence_dict[element] = float(m.group(pattern_group))
+                            valence_dict[element] = float(m.group(1))
             except FileNotFoundError:
-                print(f'Pseudopotential {pseudo_dict[element]} not found; defaulting to internal valences')
-                valence_dict[element] = ONCVValences().valence[element]
+                raise FileNotFoundError(f"{element} pseudopotential not found: {pseudo_path}")
+
+            if element not in valence_dict:
+                raise ValueError(f"Could not parse z_valence for '{element}' from {pseudo_path}")
 
         return valence_dict
 
     def get_valence(self, element):
         return self.valence.get(element, None)
-

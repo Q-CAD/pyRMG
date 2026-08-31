@@ -2,6 +2,7 @@ import os
 import re
 import xml.etree.ElementTree as ET
 
+
 class Forcefield:
     def __init__(self, forcefield_xml_path):
         self.forcefield_xml_path = forcefield_xml_path

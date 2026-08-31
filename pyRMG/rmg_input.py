@@ -2,7 +2,6 @@ import yaml
 import re
 import json
 import os
-import sys
 import math
 from pymatgen.core import Structure
 import numpy as np
@@ -11,6 +10,192 @@ from pyRMG.processor_grid import get_processor_grid
 
 # Conversion factor from Bohr to Angstrom
 BOHR_TO_ANGSTROM = 0.529177
+
+
+def _round_sig(number, sig=3):
+    power = "{:e}".format(number).split('e')[1]
+    return round(number, -(int(power) - sig))
+
+
+def _parse_map(text: str) -> dict[str, str]:
+    tokens = text.split()
+    if len(tokens) % 2 != 0:
+        raise ValueError("Expected an even number of tokens (key/value pairs) from 'pseudopotential' input parameter")
+    # take every even token as a key, the following one as its value
+    return dict(zip(tokens[0::2], tokens[1::2]))
+
+
+def _sum_electrons(structure, pseudopotentials_directory, pseudo_dct):
+    """
+    Unlike the pyRMG original, this raises immediately (rather than printing
+    and sys.exit(1)-ing) if any element's valence electron count can't be
+    resolved -- a bare sys.exit() inside code that now runs as a MatEnsemble
+    chore would kill the whole worker process rather than being reported as
+    a clean, recorded chore failure.
+    """
+    if pseudopotentials_directory == '':
+        valence = ONCVValences()
+    else:
+        valence = GeneralValences(pseudopotentials_directory, pseudo_dct)
+
+    valences = [valence.get_valence(str(site.specie)) for site in structure]
+    missing = sorted({str(site.specie) for site, v in zip(structure, valences) if v is None})
+    if missing:
+        raise ValueError(
+            f"No valence electron count available for element(s) {missing} "
+            f"(pseudopotentials_directory={pseudopotentials_directory!r})."
+        )
+    return np.sum(valences)
+
+
+def _generate_wavefunction_grid(structure, cutoff, grid_divisibility_exponent):
+    rca = np.pi / np.sqrt(cutoff) * BOHR_TO_ANGSTROM
+    nx, ny, nz = np.rint(structure.lattice.abc / rca).astype(int)
+
+    def grid_spacing_factors(nx, ny, nz, factor):
+        return [(dim + factor - 1) // factor * factor for dim in [nx, ny, nz]]
+
+    def anisotropy_check(structure, nxg, nyg, nzg):
+        h_max = np.max(np.divide(structure.lattice.abc, [nxg, nyg, nzg]))
+        h_min = np.min(np.divide(structure.lattice.abc, [nxg, nyg, nzg]))
+        return h_max / h_min <= 1.1
+
+    use_i = 1
+    last_grid = (nx, ny, nz)
+    for _ in range(grid_divisibility_exponent):
+        use_i *= 2
+        nxg, nyg, nzg = grid_spacing_factors(nx, ny, nz, use_i)
+        if anisotropy_check(structure, nxg, nyg, nzg):
+            last_grid = (nxg, nyg, nzg)
+    return " ".join(str(n) for n in last_grid)
+
+
+def _generate_kpoint_mesh(structure, kdelt):
+    kpoints = [int(max(1, np.rint(np.divide(mag, kdelt)))) for mag in np.multiply(structure.lattice.reciprocal_lattice.abc, BOHR_TO_ANGSTROM)]
+    return " ".join([str(k) for k in kpoints])
+
+
+def compute_grid_and_resources(structure, input_args, target_nodes=0, gpus_per_node=8,
+                                electrons_per_gpu=10, grid_divisibility_exponent=3,
+                                pseudopotentials_directory='', pseudo_dct=None,
+                                kpoint_multiplier=1):
+    """
+    The composition/lattice-dependent (never atomic-position-dependent) core
+    of what RMGInput.from_yaml used to do in one shot: wavefunction grid,
+    kpoint mesh/distribution, convergence-criterion scaling, electron
+    counting, and processor grid + target_nodes sizing. Callable standalone
+    so a caller can get a resource estimate (e.g. DFTMatEnsemble.build_dft_dcts,
+    at task-construction time, before any chore is submitted) using whatever
+    structure is on hand -- and the same function gets called again later,
+    against the possibly-updated structure right before a run actually
+    happens, to get the authoritative value. The two are only guaranteed to
+    agree if the lattice itself hasn't changed between calls (e.g. under
+    cell_relax); see RMG.write_input's consistency check for what happens
+    when they don't.
+
+    Returns (updated_input_args, target_nodes). Does not mutate the input_args
+    dict passed in.
+    """
+    input_args = dict(input_args)
+    pseudo_dct = dict(pseudo_dct) if pseudo_dct else {}
+
+    # Unlike 'pseudo_dir'/'pseudopotential' (genuine RMG input keywords, kept
+    # in input_args so they end up in the generated rmg_input file), none of
+    # these are RMG keywords -- they're ensemble-orchestration knobs this
+    # codebase invented, which test/RMG_testing/rmg_dft.py reads out of the
+    # same yaml file. Popping them here (rather than leaving that to each
+    # caller) means a value embedded directly in the yaml always overrides
+    # whatever default the caller passed in (for the three this function
+    # itself uses), and none of the five ever leaks into the generated
+    # rmg_input file as a bogus keyword.
+    gpus_per_node = input_args.pop('gpus_per_node', gpus_per_node)
+    electrons_per_gpu = input_args.pop('electrons_per_gpu', electrons_per_gpu)
+    grid_divisibility_exponent = input_args.pop('grid_divisibility_exponent', grid_divisibility_exponent)
+    for orchestration_only_key in ('rmg_name', 'rmg_executable', 'command', 'structure_filename', 'allocated_nodes'):
+        input_args.pop(orchestration_only_key, None)
+
+    if 'cutoff' in input_args:
+        wavefunction_grid = _generate_wavefunction_grid(structure, input_args['cutoff'], grid_divisibility_exponent)
+        input_args['wavefunction_grid'] = wavefunction_grid
+        input_args.pop('cutoff', 0)
+    elif 'wavefunction_grid' in input_args:
+        wavefunction_grid = input_args['wavefunction_grid']
+    else:
+        raise KeyError('Input .yml must contain "cutoff" or "wavefunction_grid"')
+
+    if 'kdelt' in input_args:
+        kpoint_mesh = _generate_kpoint_mesh(structure, input_args['kdelt'])
+        input_args['kpoint_mesh'] = kpoint_mesh
+        input_args.pop('kdelt', 0)
+    elif 'kpoint_mesh' in input_args:
+        pass
+    else:
+        raise KeyError('Input .yml must contain "kdelt" or "kpoint_mesh"')
+
+    # RMG's own 'kpoint_distribution' input keyword sets pct.pe_kpoint directly
+    # (confirmed in the RMG source: Input/ReadDynamics.cpp registers it against
+    # &pct.pe_kpoint; Misc/InitPe4kpspin.cpp uses it as exactly that -- how
+    # many-fold to replicate the processor grid across k-point-parallel
+    # groups, with each rank looping over the remaining k-points sequentially
+    # within its group). It is NOT the total number of k-points -- an earlier
+    # version of this function wrote the total k-point count (product of
+    # kpoint_mesh) under this same key, which would have silently
+    # misconfigured pe_kpoint (or been rejected by RMG's own validation and
+    # fallen back to auto-factorization) rather than doing what was intended.
+    #
+    # kpoint_multiplier is this codebase's own name for the same pe_kpoint
+    # concept, kept distinct so it's never confused with kpoint_mesh's total
+    # count, and poppable from input_args like the other numeric knobs above.
+    # Default of 1 means no k-point parallelization at all: a single
+    # processor grid replica loops over every k-point sequentially, and
+    # total_nodes below reflects the processor grid alone.
+    kpoint_multiplier = input_args.pop('kpoint_multiplier', kpoint_multiplier)
+    input_args['kpoint_distribution'] = kpoint_multiplier
+
+    if 'pseudo_dir' in input_args:
+        pseudopotentials_directory = input_args['pseudo_dir']
+        if 'pseudopotential' in input_args:
+            pseudo_dct = _parse_map(input_args['pseudopotential'])
+
+    total_electrons = _sum_electrons(structure, pseudopotentials_directory, pseudo_dct)
+
+    if 'unoccupied_fraction' in input_args:
+        electronic_states = np.ceil(0.5 * total_electrons)
+        input_args['unoccupied_states_per_kpoint'] = int(input_args['unoccupied_fraction'] * electronic_states)
+        input_args.pop('unoccupied_fraction', 0)
+
+    if 'per_atom_energy' in input_args:
+        energy_convergence_criterion = input_args['per_atom_energy'] * len(structure)
+        if energy_convergence_criterion < 1e-20:
+            energy_convergence_criterion = 1e-20
+        elif energy_convergence_criterion > 1e-07:
+            energy_convergence_criterion = 1e-07
+        else:
+            pass
+        input_args['energy_convergence_criterion'] = _round_sig(energy_convergence_criterion)
+        input_args.pop('per_atom_energy', 0)
+
+    if 'per_atom_rms' in input_args:
+        rms_convergence_criterion = input_args['per_atom_rms'] * len(structure)
+        if rms_convergence_criterion > 1e-03:
+            rms_convergence_criterion = 1e-03
+        input_args['rms_convergence_criterion'] = _round_sig(rms_convergence_criterion)
+        input_args.pop('per_atom_rms', 0)
+
+    if 'processor_grid' not in input_args:
+        fix_nodes = True
+        if not target_nodes:
+            target_nodes = (total_electrons / (electrons_per_gpu * gpus_per_node))
+            fix_nodes = False
+        processor_grid, target_nodes = get_processor_grid(
+            [int(g) for g in wavefunction_grid.split()],
+            target_nodes, gpus_per_node, kpoint_multiplier,
+            grid_divisibility_exponent, fix_nodes
+        )
+        input_args['processor_grid'] = processor_grid
+
+    return input_args, target_nodes
+
 
 class RMGInput:
     def __init__(self, structure: Structure = None, site_params: dict = None, keywords: dict = None, input_file: str = None, target_nodes: int = 0):
@@ -26,18 +211,14 @@ class RMGInput:
 
         if input_file:
             # Load from an existing file
-            try:
-                self._load_from_file(input_file)
-            except ValueError:
-                print(f'Cannot generate structure, keywords, and site_params from {input_file}')
-                sys.exit(1)
-        elif structure and keywords and site_params:
+            self._load_from_file(input_file)
+        elif structure is not None and keywords is not None and site_params is not None:
             # Initialize from a structure and a dictionary of settings
             self.structure = structure
             self.keywords = keywords
             self.site_params = site_params
         else:
-            raise ValueError("Must provide either input_file or (structure and keywords).")
+            raise ValueError("Must provide either input_file or (structure and keywords and site_params).")
 
     def _load_from_file(self, input_file: str):
         """Loads an existing RMG input file."""
@@ -67,12 +248,12 @@ class RMGInput:
             "bravais_lattice_type": None,
         }
         site_params = {
-            "selective_dynamics": [], 
-            "magnetic_properties": [], 
+            "selective_dynamics": [],
+            "magnetic_properties": [],
         }
         current_key = None  # Tracks ongoing multi-line values
         multiline_buffer = []  # Stores accumulated lines for multi-line values
-        
+
         for line in lines:
             line = line.strip()
             if not line or line.startswith("#") or line.startswith('"'):  # Skip empty lines and comments
@@ -121,7 +302,7 @@ class RMGInput:
             site_params['selective_dynamics'] = [[atom[i] == "1" for i in range(4, 7)] for atom in structure_params["atomic_positions"]]
             site_params['magnetic_properties'] = [[float(atom[i]) for i in range(7, len(atom))] for atom in structure_params["atomic_positions"]]
             coords *= conversion_factor  # Apply unit conversion to atomic positions
-            
+
             # Set coords_are_cartesian
             if structure_params["atomic_coordinate_type"] == "Absolute":
                 coords_are_cartesian = True
@@ -132,7 +313,7 @@ class RMGInput:
                 structure_params["lattice_vectors"], species, coords,
                 coords_are_cartesian=coords_are_cartesian
             )
-        
+
         # Remove the structure-specific keys from the keywords dictionary
         for key in ('atoms', 'lattice_vector', 'bravais_lattice_type', 'crds_units', 'lattice_units', 'atomic_coordinate_type'):
             keywords.pop(key, 0)
@@ -179,16 +360,17 @@ class RMGInput:
         return writelines
 
     @classmethod
-    def from_yaml(cls, yaml_path, structure_path=None, structure_obj=None, pseudopotentials_directory='', 
-                  magmom_path=None, target_nodes=0, gpus_per_node=8, electrons_per_gpu=10, grid_divisibility_exponent=3):
+    def from_yaml(cls, yaml_path, structure_path=None, structure_obj=None, pseudopotentials_directory='',
+                  magmom_path=None, target_nodes=0, gpus_per_node=8, electrons_per_gpu=10,
+                  grid_divisibility_exponent=3, kpoint_multiplier=1):
         with open(yaml_path, 'r') as f:
             input_args = yaml.safe_load(f)
-        
+
         if not structure_obj:
             structure_obj = Structure.from_file(structure_path)
-        site_params = {'selective_dynamics': cls._read_selective_dynamics(structure_obj), 
+        site_params = {'selective_dynamics': cls._read_selective_dynamics(structure_obj),
                        'magnetic_properties': cls._read_magnetic_occupancies(structure_obj)}
-        
+
         if magmom_path and os.path.exists(magmom_path):
             print(f'Reading magnetic moments from {magmom_path}')
             with open(magmom_path, 'r') as f:
@@ -198,147 +380,27 @@ class RMGInput:
         else:
             site_params['magnetic_properties'] = ["0.0 0.0 0.0" for site in structure_obj]
 
-        # User-supplied tag logic
-        if 'cutoff' in input_args:
-            wavefunction_grid = cls._generate_wavefunction_grid(structure_obj, input_args['cutoff'], 
-                                                                grid_divisibility_exponent)
-            input_args['wavefunction_grid'] = wavefunction_grid
-            input_args.pop('cutoff', 0)
-        elif 'wavefunction_grid' in input_args:
-            wavefunction_grid = input_args['wavefunction_grid']
-        else:
-            raise KeyError(f'Input .yml must contain "cutoff" or "wavefunction_grid"')
-        
-        # Kpoints from mesh density
-        if 'kdelt' in input_args:
-            kpoint_mesh = cls._generate_kpoint_mesh(structure_obj, input_args['kdelt'])
-            input_args['kpoint_mesh'] = kpoint_mesh
-            input_args.pop('kdelt', 0)
-        elif 'kpoint_mesh' in input_args:
-            pass
-        else:
-            raise KeyError(f'Input .yml must contain "kdelt" or "kpoint_mesh"')
-
-        # Auto-generate kpoint distribution
-        if 'kpoint_distribution' in input_args and input_args['kpoint_distribution'] > 0:
-            kpoint_distribution = input_args['kpoint_distribution']
-        else:
-            # Externally set kpoint_distribution, similar to 'kpoint_distribution = -1' default
-            kpoint_distribution = int(np.prod([int(i) for i in input_args['kpoint_mesh'].split()]))
-            input_args['kpoint_distribution'] = kpoint_distribution
-
-        # Path to different pseudos than default
         pseudo_dct = {}
         if 'pseudo_dir' in input_args:
-            pseudopotentials_directory = input_args['pseudo_dir'] # Overwrite default from passed .yml file
+            pseudopotentials_directory = input_args['pseudo_dir']
             if 'pseudopotential' in input_args:
-                pseudo_dct = cls._parse_map(input_args['pseudopotential'])
+                pseudo_dct = _parse_map(input_args['pseudopotential'])
 
-        total_electrons = cls._sum_electrons(structure_obj, pseudopotentials_directory, pseudo_dct)
-
-        # Set unoccupied levels; can improve convergence
-        if 'unoccupied_fraction' in input_args:
-            electronic_states = np.ceil(0.5 * total_electrons)
-            input_args['unoccupied_states_per_kpoint'] = int(input_args['unoccupied_fraction'] * electronic_states)
-            input_args.pop('unoccupied_fraction', 0)
-
-        # Per atom convergence criterion
-        if 'per_atom_energy' in input_args:
-            energy_convergence_criterion = input_args['per_atom_energy'] * len(structure_obj)
-            if energy_convergence_criterion < 1e-20:
-                energy_convergence_criterion = 1e-20
-            elif energy_convergence_criterion > 1e-07:
-                energy_convergence_criterion = 1e-07
-            else:
-                pass
-            input_args['energy_convergence_criterion'] = cls._round_sig(energy_convergence_criterion) 
-            input_args.pop('per_atom_energy', 0)
-
-        # Per atom rms convergence
-        if 'per_atom_rms' in input_args:
-            rms_convergence_criterion = input_args['per_atom_rms'] * len(structure_obj)
-            if rms_convergence_criterion > 1e-03:
-                rms_convergence_criterion = 1e-03
-            input_args['rms_convergence_criterion'] = cls._round_sig(rms_convergence_criterion)
-            input_args.pop('per_atom_rms', 0)
-
-        # Processor grid generation
-        if not 'processor_grid' in input_args:
-            fix_nodes = True
-            if not target_nodes:
-                target_nodes = (total_electrons / (electrons_per_gpu * gpus_per_node))
-                fix_nodes = False
-            processor_grid, target_nodes = get_processor_grid([int(g) for g in wavefunction_grid.split()],
-                                                              target_nodes, gpus_per_node, kpoint_distribution, 
-                                                              grid_divisibility_exponent, fix_nodes)
-            input_args['processor_grid'] = processor_grid
+        input_args, target_nodes = compute_grid_and_resources(
+            structure_obj, input_args, target_nodes=target_nodes, gpus_per_node=gpus_per_node,
+            electrons_per_gpu=electrons_per_gpu, grid_divisibility_exponent=grid_divisibility_exponent,
+            pseudopotentials_directory=pseudopotentials_directory, pseudo_dct=pseudo_dct,
+            kpoint_multiplier=kpoint_multiplier
+        )
 
         return cls(structure=structure_obj, keywords=input_args, site_params=site_params, target_nodes=target_nodes)
-    
-    @staticmethod
-    def _parse_map(text: str) -> dict[str, str]:
-        tokens = text.split()
-        if len(tokens) % 2 != 0:
-            raise ValueError("Expected an even number of tokens (key/value pairs) from 'pseudopotential' input parameter")
-        # take every even token as a key, the following one as its value
-        return dict(zip(tokens[0::2], tokens[1::2]))
-
-    @staticmethod
-    def _sum_electrons(structure, pseudopotentials_directory, pseudo_dct):
-        if pseudopotentials_directory == '': 
-            valence = ONCVValences()
-        else:
-            valence = GeneralValences(pseudopotentials_directory, pseudo_dct) 
-        try:
-            total_electrons = np.sum([valence.get_valence(str(site.specie)) for site in structure])
-            return total_electrons
-        except TypeError:
-            print(f'Not all elements in {structure_obj.composition.reduced_formula} have ONCV pseudopotentials! Exiting...')
-            sys.exit(1)
 
     @staticmethod
     def _read_selective_dynamics(structure):
         return [" ".join("1" if x else "0" for x in sd) if "selective_dynamics" in structure.site_properties else "1 1 1"
             for sd in structure.site_properties.get("selective_dynamics", [[True, True, True]] * len(structure))]
-    
+
     @staticmethod
     def _read_magnetic_occupancies(structure):
         return [" ".join(str(x) for x in sd) if "magnetic_properties" in structure.site_properties else "0.0 0.0 0.0"
             for sd in structure.site_properties.get("magnetic_properties", [])]
-
-    @staticmethod
-    def _generate_wavefunction_grid(structure, cutoff, grid_divisibility_exponent):
-        rca = np.pi / np.sqrt(cutoff) * BOHR_TO_ANGSTROM
-        nx, ny, nz = np.rint(structure.lattice.abc / rca).astype(int)
-
-        def grid_spacing_factors(nx, ny, nz, factor):
-            return [(dim + factor - 1) // factor * factor for dim in [nx, ny, nz]]
-        
-        def anisotropy_check(structure, nxg, nyg, nzg):
-            h_max = np.max(np.divide(structure.lattice.abc, [nxg, nyg, nzg]))
-            h_min = np.min(np.divide(structure.lattice.abc, [nxg, nyg, nzg]))
-            return h_max / h_min <= 1.1
-        
-        use_i = 1
-        last_grid = (nx, ny, nz)
-        for _ in range(grid_divisibility_exponent):
-            use_i *= 2
-            nxg, nyg, nzg = grid_spacing_factors(nx, ny, nz, use_i)
-            if anisotropy_check(structure, nxg, nyg, nzg):
-                last_grid = (nxg, nyg, nzg)
-        return " ".join(str(n) for n in last_grid)
-    
-    @staticmethod
-    def _generate_kpoint_mesh(structure, kdelt):
-        kpoints = [int(max(1, np.rint(np.divide(mag, kdelt)))) for mag in np.multiply(structure.lattice.reciprocal_lattice.abc, BOHR_TO_ANGSTROM)]
-        return " ".join([str(k) for k in kpoints])
-   
-    def _generate_keywords(self):
-        self.keywords['positions'] = self.site_params['selective_dynamics']
-        if 'cutoff' in self.input_args:
-            self.keywords['wavefunction_grid'] = self._generate_wavefunction_grid(self.structure, self.input_args['cutoff'])
-
-    @staticmethod
-    def _round_sig(number, sig=3):
-        power = "{:e}".format(number).split('e')[1]
-        return round(number, -(int(power) - sig))

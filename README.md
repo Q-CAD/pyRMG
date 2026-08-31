@@ -8,7 +8,10 @@
 - Accepts input parameters as .yml files, which can be applied to directories of POSCAR files. 
 - Automatically solves for the number of nodes and processor grid distribution so that they are evenly spaced across the computed cells. 
 - Includes checks for force and scf-convergence based on `forcefield.xml` and `rmg_input` files.
-- Integrated into matsemble + Flux scheduler workflows for high-throughput calculations.   
+- `rmg_calculator.RMG`, an ASE `FileIOCalculator` wrapping the compiled `rmg-gpu`/`rmg-cpu` binary, and
+  `pick_structure.pick_best_structure`, which resolves the authoritative starting structure for a run
+  (latest structure from an `rmg_input.*.log`, else an existing `rmg_input`, else a static structure file)
+  -- these back the current MatEnsemble+Flux integration; see the MatEnsemble section below.
 
 ## Installation
 You can install `pyRMG` using pip:
@@ -38,23 +41,22 @@ config pyrmg --allocation MAT123 --partition batch --gpus_per_node 8 --rmg_execu
 
 `generate_pyrmg_cli.py` or `generate_pyrmg` - Used to construct RMG input files and submission files (generated from templates in `submission_templates`) from POSCAR files in a subdirectory tree. Takes the POSCARs directory path, a .yml file with RMG input parameters, and a submission script template as required inputs. 
 
-`matsemble_pyrmg_cli.py` or `matsemble_pyrmg` - The executable used to submit a directory tree of RMG jobs into a single Flux job submission. Does not require any inputs, as the default is to search current directory for RMG jobs.  
+`matsemble_pyrmg_cli.py` or `matsemble_pyrmg` - **Deprecated.** Used to submit a directory tree of RMG jobs into a single Flux job submission via `matensemble.matfluxGen.SuperFluxManager`, an old MatEnsemble API that no longer exists in current MatEnsemble releases. Kept for reference only; will not run against a current `matensemble` install. See the MatEnsemble section below for the current integration path.
 
 ## MatEnsemble
 
-To integrate `pyRMG` with [MatEnsemble](https://github.com/Q-CAD/MatEnsemble/tree/main), it is most convenient to create a `matensemble` conda environment where `pyRMG` can be installed. You must then make sure that Flux is supported on your machine, or can be activated via Spack.  
+`pyRMG`'s own `matsemble_pyrmg` entry point (above) is deprecated -- current MatEnsemble+Flux integration goes through [Ensemble-FF-Fit](https://github.com/Q-CAD/Ensemble-FF-Fit)'s `DFTMatEnsemble` instead, using `pyRMG.rmg_calculator.RMG` (an ASE `Calculator` wrapping the RMG binary) and `pyRMG.pick_structure.pick_best_structure` (restart-aware structure resolution) as the building blocks a site-specific driver script calls into. See
+`Ensemble-FF-Fit/examples/Frontier/RMG_MACE_ASE/` for a full worked example (RMG DFT convergence -> MACE
+ensemble fitting -> ASE finite-temperature MD), including its own driver script
+(`DFT/rmg_dft.py`) showing how a MatEnsemble chore dispatches into `pyRMG`.
 
-```bash
-conda activate /path/to/your/matensemble_env
-```
+To install `pyRMG` for that integration, add it as an optional dependency of `Ensemble-FF-Fit`
+(the `rmg` extra: `pip install -e ".[rmg]"`) rather than installing it standalone -- `Ensemble-FF-Fit`
+owns the MatEnsemble/Flux `Pipeline`/chore submission logic; `pyRMG` only provides the RMG-specific
+input generation, execution, and log-parsing pieces that driver script calls into.
 
-Copy `examples/run_directory/` to your scratch directory. Navigate to this directory and run: 
-
-```bash
-sbatch submit_matsemble_pyrmg.sh 
-```
-
-This provides an example to instantiate and submit a Flux workflow to scf- and ionically-converge a bulk, vdW-layered Bi2Se3 calculation. 
+For submitting RMG jobs *without* MatEnsemble/Flux, `submit_pyrmg`/`generate_pyrmg` (above) remain the
+standalone entry points and don't depend on any of this.
 
 ## License
 This project is licensed under the MIT License. 

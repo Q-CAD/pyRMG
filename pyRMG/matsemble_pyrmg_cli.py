@@ -1,4 +1,16 @@
-from pyRMG.load_config import load_config 
+"""
+DEPRECATED. This script submits RMG jobs via matensemble.matfluxGen.SuperFluxManager,
+an old MatEnsemble API that no longer exists in current MatEnsemble releases
+(superseded by the Pipeline/@pipe.chore pattern). RMG jobs now run through
+MatEnsemble via Ensemble-FF-Fit's DFTMatEnsemble instead -- see
+Ensemble-FF-Fit/examples/Frontier/RMG_MACE_ASE/ for the current, working
+integration. This file is kept for reference only and will not run against a
+current matensemble install; it is a deletion candidate once nothing depends
+on it.
+"""
+import warnings
+
+from pyRMG.load_config import load_config
 from pyRMG.rmg_input import RMGInput
 from pyRMG.forcefield import Forcefield
 from pyRMG.submitter import Submitter
@@ -10,6 +22,13 @@ import numpy as np
 import pandas as pd
 
 def main():
+    warnings.warn(
+        "matsemble_pyrmg is deprecated and will not run against current MatEnsemble "
+        "releases (it depends on the obsolete matensemble.matfluxGen.SuperFluxManager "
+        "API). RMG jobs now run through MatEnsemble via Ensemble-FF-Fit's "
+        "DFTMatEnsemble instead -- see Ensemble-FF-Fit/examples/Frontier/RMG_MACE_ASE/.",
+        DeprecationWarning, stacklevel=2,
+    )
     config = load_config()
     parser = argparse.ArgumentParser(description="Argument parser to generate rmg_inputs from POSCAR files")
 

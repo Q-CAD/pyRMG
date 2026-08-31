@@ -1,10 +1,8 @@
 from pyRMG.load_config import load_config
 from pyRMG.forcefield import Forcefield
-from pyRMG.rmg_log import RMGLog
 from pyRMG.rmg_input import RMGInput
 from pyRMG.convergence import RMGConvergence
-from pyRMG.submitter import Submitter
-from pymatgen.core.structure import Structure
+from pyRMG.pick_structure import pick_best_structure
 from pathlib import Path
 import argparse
 import os
@@ -129,52 +127,40 @@ def generate(args):
             else:
                 print(f'{FAIL_RED}Unconverged {convergence_checker.calculation_mode} job in {root}, inputs generated.{ENDC}')
 
-        # Choose the input structure
-        structure_path = os.path.join(root, args.structure_filename)
-        rmg_input_path = os.path.join(root, args.rmg_name)
-        available_logs = Submitter.find_files(root, 'rmg_input.*.log')
-        
-        rmg_input = RMGInput(input_file=rmg_input_path) if os.path.exists(rmg_input_path) else None
-        magmom_path = os.path.join(root, args.magmom_name) if os.path.exists(os.path.join(root, args.magmom_name)) else None
+        # Choose the input structure -- delegated to pick_best_structure,
+        # which implements the same logs -> existing rmg_input ->
+        # structure_filename priority order this used to duplicate inline,
+        # plus the existing-rmg_input site_params merge (selective_dynamics/
+        # magnetic_properties) and MAGMOM.json-based magnetic-moment
+        # attachment that used to be done separately here too. Consolidated
+        # into one place so the two copies can't drift apart again -- the
+        # site-properties handling here had gotten a real fix on the
+        # MatEnsemble side that this copy hadn't picked up.
         final_structure = None
 
         if generate_inputs:
-            if available_logs:
-                rmg_logs = RMGLog(root)
-                log_images = sorted(rmg_logs.logs_data.keys(), reverse=True)  # Sort in descending order
-                        
-                for image in log_images:
-                    structures = rmg_logs.logs_data[image].get('structures', [])
-                    if structures:  # Ensure there are structures available
-                        print(f'Generating input for {root} from final structure of {image}')
-                        final_structure = structures[-1]
-                        break  # Exit loop once we find a valid structure
+            try:
+                final_structure, source = pick_best_structure(
+                    root, structure_filename=args.structure_filename,
+                    rmg_name=args.rmg_name, magmom_name=args.magmom_name)
+                print(f'Generating input for {root} from {source}')
+            except FileNotFoundError:
+                continue  # no usable structure in this directory
 
-            elif rmg_input:
-                print(f'No valid structures found in logs for {root}; defaulting to {args.rmg_name}')
-                final_structure = rmg_input.structure
-            
-            elif os.path.exists(structure_path):
-                print(f'No valid structures found in logs or {args.rmg_name} for {root}; defaulting to {args.structure_filename}')
-                final_structure = Structure.from_file(structure_path)
-
-            else: # Cannot find a valid structure file
-                continue
-                
         # Create the new rmg_input file if final_structure exists
         if final_structure:
-            if rmg_input:
-                for prop_key, prop_value in rmg_input.site_params.items():
-                    final_structure.add_site_property(prop_key, prop_value)
-
-            rmg_input = RMGInput.from_yaml(yaml_path=args.rmg_yaml, 
+            # magmom_path deliberately not passed here -- pick_best_structure
+            # already attached 'magnetic_properties' as a site property
+            # (from MAGMOM.json if present, else from an existing rmg_input's
+            # own site_params), and from_yaml falls back to reading it off
+            # structure_obj's own site properties when magmom_path is None.
+            rmg_input = RMGInput.from_yaml(yaml_path=args.rmg_yaml,
                                  structure_path=None,
-                                 structure_obj=final_structure, 
+                                 structure_obj=final_structure,
                                  pseudopotentials_directory=args.pseudopotentials_directory,
-                                 magmom_path=magmom_path, 
-                                 target_nodes=args.nodes, 
+                                 target_nodes=args.nodes,
                                  gpus_per_node=args.gpus_per_node,
-                                 electrons_per_gpu=args.electrons_per_gpu, 
+                                 electrons_per_gpu=args.electrons_per_gpu,
                                  grid_divisibility_exponent=args.grid_divisibility_exponent)
             rmg_input.save(filename=os.path.join(root, args.rmg_name))
 

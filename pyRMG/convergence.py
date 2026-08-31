@@ -1,5 +1,6 @@
 from pyRMG.forcefield import Forcefield
-from pyRMG.rmg_input import RMGInput 
+from pyRMG.rmg_input import RMGInput
+
 
 class RMGConvergence:
     def __init__(self, rmg_input: RMGInput, forcefield: Forcefield):
